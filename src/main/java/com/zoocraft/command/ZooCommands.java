@@ -64,6 +64,7 @@ public final class ZooCommands {
                     return 1;
                 })
                 .then(ZooDebugCommands.build())
+                .then(ShopCommands.build())
                 .then(Commands.literal("list").executes(ZooCommands::list))
                 .then(withZoo(Commands.literal("info"), (c, zoo) -> info(c, zoo)))
                 .then(withZoo(Commands.literal("open"), (c, zoo) -> act(c, (zoos, p) -> zoos.setOpen(p, zoo, true))))
@@ -96,12 +97,12 @@ public final class ZooCommands {
     }
 
     @FunctionalInterface
-    private interface ZooCommand {
+    interface ZooCommand {
         int run(CommandContext<CommandSourceStack> context, Zoo zoo) throws CommandSyntaxException;
     }
 
     /** Adds an optional trailing zoo name; without it, the zoo the player is standing in (or their only zoo) is used. */
-    private static <T extends ArgumentBuilder<CommandSourceStack, T>> T withZoo(T node, ZooCommand command) {
+    static <T extends ArgumentBuilder<CommandSourceStack, T>> T withZoo(T node, ZooCommand command) {
         RequiredArgumentBuilder<CommandSourceStack, String> named = Commands.argument(ZOO, StringArgumentType.string()).suggests(ZOO_NAMES)
                 .executes(c -> command.run(c, namedZoo(c)));
         return node.executes(c -> command.run(c, implicitZoo(c))).then(named);
@@ -136,16 +137,16 @@ public final class ZooCommands {
     }
 
     @FunctionalInterface
-    private interface Action {
+    interface Action {
         ActionResult apply(ZooManager zoos, ServerPlayer player) throws CommandSyntaxException;
     }
 
-    private static int act(CommandContext<CommandSourceStack> context, Action action) throws CommandSyntaxException {
+    static int act(CommandContext<CommandSourceStack> context, Action action) throws CommandSyntaxException {
         ServerPlayer player = context.getSource().getPlayerOrException();
         return report(context, action.apply(ZooManager.get(context.getSource().getServer()), player));
     }
 
-    private static int report(CommandContext<CommandSourceStack> context, ActionResult result) {
+    static int report(CommandContext<CommandSourceStack> context, ActionResult result) {
         CommandSourceStack source = context.getSource();
         if (result.success()) {
             source.sendSuccess(result::message, false);
@@ -211,7 +212,7 @@ public final class ZooCommands {
         return com.zoocraft.zoo.PlayerNames.name(server, id);
     }
 
-    private static CommandSyntaxException error(Component message) {
+    static CommandSyntaxException error(Component message) {
         return new SimpleCommandExceptionType(message).create();
     }
 }

@@ -227,5 +227,15 @@
   "zoocraft.category.food": "Food",
   "zoocraft.category.drink": "Drink",
   "zoocraft.category.souvenir": "Souvenir",
-  "zoocraft.category.unsellable": "Not for sale"
+  "zoocraft.category.unsellable": "Not for sale",
+  "zoocraft.cmd.no_such_shop": "There's no shop called %s in %s.",
+  "zoocraft.cmd.shop_list_header": "%s has %s shop(s) and %s toilet(s):",
+  "zoocraft.cmd.shop_line": "· %s container(s) · %s emeralds today, %s in total",
+  "zoocraft.debug.sell": "Selling %s at %s: %s. Treasury: %s.",
+  "zoocraft.sale.sold": "sold",
+  "zoocraft.sale.shop_closed": "the shop is closed or outside the boundary",
+  "zoocraft.sale.duplicate": "already sold",
+  "zoocraft.sale.cant_afford": "the buyer can't afford it",
+  "zoocraft.sale.out_of_stock": "out of stock",
+  "zoocraft.sale.invalid_price": "the price isn't valid"
 }
