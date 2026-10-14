@@ -18,6 +18,7 @@ public final class Ledger {
 
     private long balance;
     private long totalAdmission;
+    private long totalShopSales;
     private long totalDeposits;
     private long totalWithdrawals;
     private final Deque<Transaction> recent = new ArrayDeque<>();
@@ -27,10 +28,11 @@ public final class Ledger {
     }
 
     /** Restores persisted state. {@code recent} is newest first; {@code keys} is oldest first. */
-    public Ledger(long balance, long totalAdmission, long totalDeposits, long totalWithdrawals,
+    public Ledger(long balance, long totalAdmission, long totalShopSales, long totalDeposits, long totalWithdrawals,
                   Collection<Transaction> recent, Collection<String> keys) {
         this.balance = balance;
         this.totalAdmission = totalAdmission;
+        this.totalShopSales = totalShopSales;
         this.totalDeposits = totalDeposits;
         this.totalWithdrawals = totalWithdrawals;
         this.recent.addAll(recent);
@@ -53,6 +55,7 @@ public final class Ledger {
             case DEPOSIT -> totalDeposits += transaction.amount();
             case WITHDRAW -> totalWithdrawals += transaction.amount();
             case ADMISSION -> totalAdmission += transaction.amount();
+            case SHOP_SALE -> totalShopSales += transaction.amount();
         }
         recent.addFirst(transaction);
         while (recent.size() > RECENT_LIMIT) {
@@ -85,6 +88,10 @@ public final class Ledger {
 
     public long totalAdmission() {
         return totalAdmission;
+    }
+
+    public long totalShopSales() {
+        return totalShopSales;
     }
 
     public long totalDeposits() {

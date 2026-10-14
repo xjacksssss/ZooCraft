@@ -21,6 +21,7 @@ public final class ZooCodecs {
     public static final Codec<Ledger> LEDGER = RecordCodecBuilder.create(i -> i.group(
             Codec.LONG.fieldOf("balance").forGetter(Ledger::balance),
             Codec.LONG.fieldOf("totalAdmission").forGetter(Ledger::totalAdmission),
+            Codec.LONG.optionalFieldOf("totalShopSales", 0L).forGetter(Ledger::totalShopSales),
             Codec.LONG.fieldOf("totalDeposits").forGetter(Ledger::totalDeposits),
             Codec.LONG.fieldOf("totalWithdrawals").forGetter(Ledger::totalWithdrawals),
             TRANSACTION.listOf().fieldOf("recent").forGetter(Ledger::recent),

@@ -82,10 +82,31 @@ class LedgerTest {
         Ledger original = new Ledger();
         original.apply(tx("visit-1", TransactionType.ADMISSION, 5));
         original.apply(tx("d1", TransactionType.DEPOSIT, 7));
-        Ledger restored = new Ledger(original.balance(), original.totalAdmission(), original.totalDeposits(),
+        original.apply(tx("sale-1", TransactionType.SHOP_SALE, 3));
+        Ledger restored = new Ledger(original.balance(), original.totalAdmission(), original.totalShopSales(), original.totalDeposits(),
                 original.totalWithdrawals(), original.recent(), original.keys());
-        assertEquals(12, restored.balance());
+        assertEquals(15, restored.balance());
+        assertEquals(3, restored.totalShopSales());
         assertEquals(LedgerResult.DUPLICATE, restored.apply(tx("visit-1", TransactionType.ADMISSION, 5)));
         assertEquals(List.copyOf(original.recent()), List.copyOf(restored.recent()));
+    }
+
+    @Test
+    void shopSaleAddsToBalanceAndShopTotal() {
+        Ledger ledger = new Ledger();
+        assertEquals(LedgerResult.APPLIED, ledger.apply(tx("sale:v1:0", TransactionType.SHOP_SALE, 2)));
+        assertEquals(2, ledger.balance());
+        assertEquals(2, ledger.totalShopSales());
+        assertEquals(0, ledger.totalAdmission());
+    }
+
+    @Test
+    void repeatedSaleKeyChangesNothing() {
+        Ledger ledger = new Ledger();
+        ledger.apply(tx("sale:v1:0", TransactionType.SHOP_SALE, 2));
+        assertEquals(LedgerResult.DUPLICATE, ledger.apply(tx("sale:v1:0", TransactionType.SHOP_SALE, 2)));
+        assertEquals(2, ledger.balance());
+        assertEquals(2, ledger.totalShopSales());
+        assertEquals(1, ledger.recent().size());
     }
 }
