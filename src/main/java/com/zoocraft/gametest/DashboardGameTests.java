@@ -2,6 +2,7 @@ package com.zoocraft.gametest;
 
 import com.zoocraft.ZooCraft;
 import com.zoocraft.dashboard.DashboardAction;
+import com.zoocraft.dashboard.DashboardTab;
 import com.zoocraft.dashboard.DashboardService;
 import com.zoocraft.network.DashboardPayloads;
 import com.zoocraft.network.DashboardSnapshot;
@@ -38,13 +39,14 @@ public final class DashboardGameTests {
         zoos.deposit(owner, zoo, 9);
         helper.spawnWithNoFreeWill(EntityType.PIG, new BlockPos(10, 2, 10));
 
-        DashboardSnapshot ownerView = DashboardService.snapshot(owner, zoo);
-        DashboardSnapshot managerView = DashboardService.snapshot(manager, zoo);
+        DashboardSnapshot ownerView = DashboardService.snapshot(owner, zoo, DashboardTab.OVERVIEW);
+        DashboardSnapshot managerView = DashboardService.snapshot(manager, zoo, DashboardTab.OVERVIEW);
         helper.assertTrue(ownerView.treasury() == 9 && managerView.treasury() == 9, "treasury differs");
         helper.assertTrue(ownerView.gates().size() == 1 && managerView.gates().size() == 1, "gates differ");
-        helper.assertTrue(ownerView.species().size() == 1, "pig not listed: " + ownerView.species());
         helper.assertTrue(ownerView.viewerIsOwner() && !managerView.viewerIsOwner(), "owner flag wrong");
-        helper.assertTrue(ownerView.managers().size() == 1, "manager not listed");
+        DashboardSnapshot animals = DashboardService.snapshot(owner, zoo, DashboardTab.ANIMALS);
+        helper.assertTrue(animals.species().size() == 1, "pig not listed: " + animals.species());
+        helper.assertTrue(DashboardService.snapshot(owner, zoo, DashboardTab.SETTINGS).managers().size() == 1, "manager not listed");
 
         TestZoos.cleanUp(helper, owner, zoo);
         helper.succeed();
@@ -86,6 +88,49 @@ public final class DashboardGameTests {
         long paidOut = Emeralds.count(owner.getInventory()) + Emeralds.count(manager.getInventory());
         helper.assertTrue(paidOut == 5, "paid out " + paidOut);
         TestZoos.cleanUp(helper, owner, zoo);
+        helper.succeed();
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR)
+    public static void eachTabSnapshotCarriesOnlyItsOwnData(GameTestHelper helper) {
+        TestShops.Setup s = TestShops.setUp(helper, "Tabs");
+        ServerPlayer manager = TestZoos.player(helper, "Manager");
+        s.zoos().addManager(s.owner(), s.zoo(), manager.getGameProfile());
+        helper.spawnWithNoFreeWill(EntityType.PIG, new BlockPos(20, 2, 20));
+
+        DashboardSnapshot shops = DashboardService.snapshot(s.owner(), s.zoo(), DashboardTab.SHOPS);
+        helper.assertTrue(shops.tab() == DashboardTab.SHOPS.ordinal(), "wrong tab");
+        helper.assertTrue(shops.shops().size() == 1, "shop not listed");
+        DashboardSnapshot.ProductLine bread = shops.shops().getFirst().products().stream()
+                .filter(p -> p.itemId().equals(TestShops.BREAD)).findFirst().orElseThrow();
+        helper.assertTrue(bread.stock() == 5 && bread.price() == 2, "bad bread line: " + bread);
+        helper.assertTrue(shops.species().isEmpty() && shops.managers().isEmpty(), "shops tab carried other tabs' data");
+
+        DashboardSnapshot overview = DashboardService.snapshot(s.owner(), s.zoo(), DashboardTab.OVERVIEW);
+        helper.assertTrue(overview.shops().isEmpty() && overview.species().isEmpty() && overview.managers().isEmpty(),
+                "overview carried other tabs' data");
+        TestZoos.cleanUp(helper, s.owner(), s.zoo());
+        helper.succeed();
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR)
+    public static void shopActionsGoThroughPermissions(GameTestHelper helper) {
+        TestShops.Setup s = TestShops.setUp(helper, "Shop Actions");
+        ServerPlayer stranger = TestZoos.player(helper, "Stranger");
+        String shop = s.shop().id().toString();
+        helper.assertTrue(DashboardService.handle(s.owner(), action(s.zoo(), DashboardAction.SHOP_PRICE, 7, shop + "|" + TestShops.BREAD)).success(),
+                "owner could not set a price");
+        helper.assertTrue(s.shop().price(TestShops.BREAD).orElse(0) == 7, "price not set");
+        helper.assertFalse(DashboardService.handle(stranger, action(s.zoo(), DashboardAction.SHOP_PRICE, 1, shop + "|" + TestShops.BREAD)).success(),
+                "stranger set a price");
+        helper.assertTrue(DashboardService.handle(s.owner(), action(s.zoo(), DashboardAction.SHOP_RENAME, 0, shop + "|Riverside Café")).success(),
+                "rename failed");
+        helper.assertTrue(s.shop().name().equals("Riverside Café"), "name not set");
+        helper.assertTrue(DashboardService.handle(s.owner(), action(s.zoo(), DashboardAction.SHOP_OPEN, 0, shop)).success(), "close failed");
+        helper.assertFalse(s.shop().open(), "shop still open");
+        helper.assertFalse(DashboardService.handle(s.owner(), action(s.zoo(), DashboardAction.SHOP_PRICE, 3, "not-a-uuid|x")).success(),
+                "garbage shop ID accepted");
+        TestZoos.cleanUp(helper, s.owner(), s.zoo());
         helper.succeed();
     }
 }

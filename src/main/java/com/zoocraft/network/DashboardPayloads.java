@@ -54,8 +54,20 @@ public final class DashboardPayloads {
                 UUIDUtil.STREAM_CODEC, Action::zooId,
                 ByteBufCodecs.VAR_INT.map(i -> DashboardAction.values()[Math.floorMod(i, DashboardAction.values().length)], DashboardAction::ordinal), Action::action,
                 ByteBufCodecs.VAR_INT, Action::number,
-                ByteBufCodecs.stringUtf8(64), Action::text,
+                ByteBufCodecs.stringUtf8(160), Action::text,
                 Action::new);
+
+        @Override
+        public Type<? extends CustomPacketPayload> type() {
+            return TYPE;
+        }
+    }
+
+    /** Client to server: the player switched dashboard tab; send that tab's data from now on. */
+    public record SetTab(int tab) implements CustomPacketPayload {
+        public static final Type<SetTab> TYPE = new Type<>(ZooCraft.id("dashboard_tab"));
+        public static final StreamCodec<RegistryFriendlyByteBuf, SetTab> STREAM_CODEC = StreamCodec.composite(
+                ByteBufCodecs.VAR_INT, SetTab::tab, SetTab::new);
 
         @Override
         public Type<? extends CustomPacketPayload> type() {

@@ -7,25 +7,29 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.network.chat.ComponentSerialization;
 import net.minecraft.network.codec.StreamCodec;
 import net.minecraft.network.protocol.common.custom.CustomPacketPayload;
+import net.minecraft.world.item.ItemStack;
 
 import java.util.ArrayList;
 import java.util.List;
 import java.util.UUID;
 
 /**
- * Server to client: everything the dashboard shows for one zoo. Built fresh by the server about once a second
- * for subscribed players; the client only displays it.
+ * Server to client: what the dashboard shows for one zoo. Built fresh by the server about once a second for
+ * subscribed players; the client only displays it. The header, alerts, comments and gates are always filled;
+ * species and exhibits only for the Animals tab, shops and toilets only for the Shops tab, and managers only for
+ * the Settings tab (Phase 2 spec section 4.5).
  *
  * @param openScreen true when the client should open the dashboard, false for a refresh
+ * @param tab        ordinal of {@link com.zoocraft.dashboard.DashboardTab} this snapshot was built for
  */
 public record DashboardSnapshot(
-        boolean openScreen,
+        boolean openScreen, int tab,
         UUID zooId, String name, String ownerName, boolean viewerIsOwner,
         boolean open, int price, int maxPrice, boolean keepLoaded, boolean chunkLoadingAllowed,
-        long treasury, long admissionIncome, int attendanceToday, long attendanceTotal, long refused, int visitorsNow,
+        long treasury, long admissionIncome, long shopIncome, int attendanceToday, long attendanceTotal, long refused, int visitorsNow,
         float satisfaction, float reputation,
         List<Component> alerts, List<CommentLine> comments, List<SpeciesLine> species, List<ExhibitLine> exhibits,
-        List<GateLine> gates, List<ManagerLine> managers) implements CustomPacketPayload {
+        List<GateLine> gates, List<ManagerLine> managers, List<ShopLine> shops, List<ToiletLine> toilets) implements CustomPacketPayload {
 
     public static final Type<DashboardSnapshot> TYPE = new Type<>(ZooCraft.id("dashboard_snapshot"));
 
@@ -46,10 +50,27 @@ public record DashboardSnapshot(
     public record ManagerLine(UUID id, String name) {
     }
 
+    public static final int SHOP_OPEN = 0, SHOP_CLOSED = 1, SHOP_SOLD_OUT = 2, SHOP_DETACHED = 3;
+
+    /**
+     * @param status       one of {@link #SHOP_OPEN}, {@link #SHOP_CLOSED}, {@link #SHOP_SOLD_OUT}, {@link #SHOP_DETACHED}
+     * @param stockUnknown some stock container is in an unloaded area
+     */
+    public record ShopLine(UUID id, String name, int status, long revenueToday, int containers, boolean stockUnknown,
+                           List<ProductLine> products) {
+    }
+
+    /** @param category ordinal of {@link com.zoocraft.core.shop.ProductCategory} */
+    public record ProductLine(ItemStack icon, String itemId, int category, int stock, int price, int soldToday, int missedToday) {
+    }
+
+    public record ToiletLine(BlockPos pos, boolean detached) {
+    }
+
     public DashboardSnapshot withOpenScreen(boolean openScreen) {
-        return new DashboardSnapshot(openScreen, zooId, name, ownerName, viewerIsOwner, open, price, maxPrice, keepLoaded,
-                chunkLoadingAllowed, treasury, admissionIncome, attendanceToday, attendanceTotal, refused, visitorsNow,
-                satisfaction, reputation, alerts, comments, species, exhibits, gates, managers);
+        return new DashboardSnapshot(openScreen, tab, zooId, name, ownerName, viewerIsOwner, open, price, maxPrice, keepLoaded,
+                chunkLoadingAllowed, treasury, admissionIncome, shopIncome, attendanceToday, attendanceTotal, refused, visitorsNow,
+                satisfaction, reputation, alerts, comments, species, exhibits, gates, managers, shops, toilets);
     }
 
     public static final StreamCodec<RegistryFriendlyByteBuf, DashboardSnapshot> STREAM_CODEC = StreamCodec.of(DashboardSnapshot::write, DashboardSnapshot::read);
@@ -59,6 +80,7 @@ public record DashboardSnapshot(
 
     private static void write(RegistryFriendlyByteBuf buf, DashboardSnapshot s) {
         buf.writeBoolean(s.openScreen);
+        buf.writeVarInt(s.tab);
         buf.writeUUID(s.zooId);
         buf.writeUtf(s.name);
         buf.writeUtf(s.ownerName);
@@ -70,6 +92,7 @@ public record DashboardSnapshot(
         buf.writeBoolean(s.chunkLoadingAllowed);
         buf.writeVarLong(s.treasury);
         buf.writeVarLong(s.admissionIncome);
+        buf.writeVarLong(s.shopIncome);
         buf.writeVarInt(s.attendanceToday);
         buf.writeVarLong(s.attendanceTotal);
         buf.writeVarLong(s.refused);
@@ -99,20 +122,45 @@ public record DashboardSnapshot(
             b.writeUUID(m.id());
             b.writeUtf(m.name());
         });
+        writeList(buf, s.shops, (b, shop) -> {
+            b.writeUUID(shop.id());
+            b.writeUtf(shop.name());
+            b.writeVarInt(shop.status());
+            b.writeVarLong(shop.revenueToday());
+            b.writeVarInt(shop.containers());
+            b.writeBoolean(shop.stockUnknown());
+            writeList(b, shop.products(), (pb, p) -> {
+                ItemStack.OPTIONAL_STREAM_CODEC.encode(pb, p.icon());
+                pb.writeUtf(p.itemId());
+                pb.writeVarInt(p.category());
+                pb.writeVarInt(p.stock());
+                pb.writeVarInt(p.price());
+                pb.writeVarInt(p.soldToday());
+                pb.writeVarInt(p.missedToday());
+            });
+        });
+        writeList(buf, s.toilets, (b, t) -> {
+            b.writeBlockPos(t.pos());
+            b.writeBoolean(t.detached());
+        });
     }
 
     private static DashboardSnapshot read(RegistryFriendlyByteBuf buf) {
         return new DashboardSnapshot(
-                buf.readBoolean(), buf.readUUID(), buf.readUtf(), buf.readUtf(), buf.readBoolean(),
+                buf.readBoolean(), buf.readVarInt(), buf.readUUID(), buf.readUtf(), buf.readUtf(), buf.readBoolean(),
                 buf.readBoolean(), buf.readVarInt(), buf.readVarInt(), buf.readBoolean(), buf.readBoolean(),
-                buf.readVarLong(), buf.readVarLong(), buf.readVarInt(), buf.readVarLong(), buf.readVarLong(), buf.readVarInt(),
+                buf.readVarLong(), buf.readVarLong(), buf.readVarLong(), buf.readVarInt(), buf.readVarLong(), buf.readVarLong(), buf.readVarInt(),
                 buf.readFloat(), buf.readFloat(),
                 readList(buf, TEXT::decode),
                 readList(buf, b -> new CommentLine(TEXT.decode(b), b.readVarInt())),
                 readList(buf, b -> new SpeciesLine(TEXT.decode(b), b.readVarInt())),
                 readList(buf, b -> new ExhibitLine(TEXT.decode(b), b.readVarInt(), b.readVarInt(), b.readBoolean())),
                 readList(buf, b -> new GateLine(b.readBlockPos(), b.readVarInt())),
-                readList(buf, b -> new ManagerLine(b.readUUID(), b.readUtf())));
+                readList(buf, b -> new ManagerLine(b.readUUID(), b.readUtf())),
+                readList(buf, b -> new ShopLine(b.readUUID(), b.readUtf(), b.readVarInt(), b.readVarLong(), b.readVarInt(), b.readBoolean(),
+                        readList(b, pb -> new ProductLine(ItemStack.OPTIONAL_STREAM_CODEC.decode(pb), pb.readUtf(), pb.readVarInt(),
+                                pb.readVarInt(), pb.readVarInt(), pb.readVarInt(), pb.readVarInt())))),
+                readList(buf, b -> new ToiletLine(b.readBlockPos(), b.readBoolean())));
     }
 
     private interface Writer<T> {

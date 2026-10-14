@@ -55,6 +55,8 @@ public final class ZooNetwork {
         });
         registrar.playToServer(DashboardPayloads.OpenRequest.TYPE, DashboardPayloads.OpenRequest.STREAM_CODEC,
                 (payload, context) -> DashboardService.open((ServerPlayer) context.player(), payload.zooId()));
+        registrar.playToServer(DashboardPayloads.SetTab.TYPE, DashboardPayloads.SetTab.STREAM_CODEC,
+                (payload, context) -> DashboardService.setTab((ServerPlayer) context.player(), payload.tab()));
         registrar.playToServer(DashboardPayloads.Close.TYPE, DashboardPayloads.Close.STREAM_CODEC,
                 (payload, context) -> DashboardService.close((ServerPlayer) context.player()));
         registrar.playToServer(DashboardPayloads.Action.TYPE, DashboardPayloads.Action.STREAM_CODEC, (payload, context) -> {

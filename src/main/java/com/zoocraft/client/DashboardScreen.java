@@ -1,6 +1,9 @@
 package com.zoocraft.client;
 
+import com.zoocraft.core.shop.PriceRules;
+import com.zoocraft.core.shop.ProductCategory;
 import com.zoocraft.dashboard.DashboardAction;
+import com.zoocraft.dashboard.DashboardTab;
 import com.zoocraft.network.DashboardPayloads;
 import com.zoocraft.network.DashboardSnapshot;
 import com.zoocraft.zoo.GateStatus;
@@ -17,9 +20,10 @@ import net.neoforged.neoforge.network.PacketDistributor;
 import java.util.ArrayList;
 import java.util.List;
 import java.util.Objects;
+import java.util.UUID;
 
 /**
- * The zoo dashboard (spec section 9.2): Overview, Animals and Settings. Shows the latest server snapshot and sends
+ * The zoo dashboard (spec section 9.2, Phase 2 spec section 10.2): Overview, Animals, Shops and Settings. Shows the latest server snapshot and sends
  * button presses to the server; it never changes zoo data itself.
  */
 public class DashboardScreen extends Screen {
@@ -31,9 +35,10 @@ public class DashboardScreen extends Screen {
     private static final int HEADING = 0xFFFFD866;
     private static final int WARNING = 0xFFFF7060;
 
-    private enum Tab { OVERVIEW, ANIMALS, SETTINGS }
+    private static final int GOLD = 0xFFE0B040;
+    private static final int PRODUCT_ROW = 18;
 
-    private Tab tab = Tab.OVERVIEW;
+    private DashboardTab tab = DashboardTab.OVERVIEW;
     private int scroll;
     private Object layoutKey;
     private int left, top;
@@ -45,6 +50,11 @@ public class DashboardScreen extends Screen {
     private String transferText = "";
     private boolean confirmTransfer;
     private EditBox priceBox, amountBox, managerBox, transferBox;
+
+    // Shops tab state.
+    private UUID selectedShop;
+    private String shopNameText = "";
+    private int productScroll;
 
     public DashboardScreen() {
         super(Component.translatable("zoocraft.screen.dashboard.title"));
@@ -66,18 +76,172 @@ public class DashboardScreen extends Screen {
         if (priceText.isEmpty()) {
             priceText = Integer.toString(s.price());
         }
-        int tabWidth = (PANEL_WIDTH - 16) / 3;
-        for (Tab t : Tab.values()) {
+        int tabWidth = (PANEL_WIDTH - 16) / DashboardTab.values().length;
+        for (DashboardTab t : DashboardTab.values()) {
             Button button = Button.builder(Component.translatable("zoocraft.screen.dashboard.tab." + t.name().toLowerCase(java.util.Locale.ROOT)), b -> {
                 tab = t;
                 scroll = 0;
+                productScroll = 0;
+                PacketDistributor.sendToServer(new DashboardPayloads.SetTab(t.ordinal()));
                 rebuildWidgets();
             }).bounds(left + 8 + t.ordinal() * tabWidth, top + 22, tabWidth - 2, 18).build();
             button.active = tab != t;
             addRenderableWidget(button);
         }
-        if (tab == Tab.SETTINGS) {
+        if (tab == DashboardTab.SETTINGS) {
             initSettings(s);
+        } else if (tab == DashboardTab.SHOPS) {
+            initShops(s);
+        }
+    }
+
+    // ------------------------------------------------------------------ shops tab
+
+    /** The shop being shown: the one picked, or the first. */
+    private DashboardSnapshot.ShopLine selected(DashboardSnapshot s) {
+        if (s.shops().isEmpty()) {
+            return null;
+        }
+        for (DashboardSnapshot.ShopLine shop : s.shops()) {
+            if (shop.id().equals(selectedShop)) {
+                return shop;
+            }
+        }
+        DashboardSnapshot.ShopLine first = s.shops().getFirst();
+        selectedShop = first.id();
+        shopNameText = first.name();
+        return first;
+    }
+
+    private void initShops(DashboardSnapshot s) {
+        DashboardSnapshot.ShopLine shop = selected(s);
+        int y = top + 46;
+        for (DashboardSnapshot.ShopLine line : s.shops().stream().limit(8).toList()) {
+            Button button = Button.builder(Component.literal(font.plainSubstrByWidth(line.name(), 96)), b -> {
+                selectedShop = line.id();
+                shopNameText = line.name();
+                productScroll = 0;
+                rebuildWidgets();
+            }).bounds(left + 8, y, 104, 16).build();
+            button.active = line != shop;
+            addRenderableWidget(button);
+            y += 18;
+        }
+        if (shop == null) {
+            return;
+        }
+        int x = left + 120;
+        EditBox nameBox = new EditBox(font, x, top + 46, 116, 16, Component.empty());
+        nameBox.setMaxLength(32);
+        nameBox.setValue(shopNameText);
+        nameBox.setResponder(text -> shopNameText = text);
+        addRenderableWidget(nameBox);
+        addRenderableWidget(Button.builder(Component.translatable("zoocraft.screen.dashboard.rename"), b -> {
+            if (!shopNameText.isBlank()) {
+                send(DashboardAction.SHOP_RENAME, 0, shop.id() + "|" + shopNameText.trim());
+            }
+        }).bounds(x + 120, top + 46, 52, 16).build());
+        boolean closed = shop.status() == DashboardSnapshot.SHOP_CLOSED;
+        addRenderableWidget(Button.builder(Component.translatable(closed ? "zoocraft.screen.dashboard.open_shop" : "zoocraft.screen.dashboard.close_shop"),
+                b -> send(DashboardAction.SHOP_OPEN, closed ? 1 : 0, shop.id().toString())).bounds(x + 176, top + 46, 56, 16).build());
+
+        int rowY = top + 96;
+        for (DashboardSnapshot.ProductLine product : visibleProducts(shop)) {
+            if (product.category() != ProductCategory.UNSELLABLE.ordinal()) {
+                addRenderableWidget(Button.builder(Component.literal("-"), b -> changePrice(shop, product, -1))
+                        .bounds(x + 160, rowY + 2, 12, 12).build());
+                addRenderableWidget(Button.builder(Component.literal("+"), b -> changePrice(shop, product, 1))
+                        .bounds(x + 174, rowY + 2, 12, 12).build());
+            }
+            rowY += PRODUCT_ROW;
+        }
+    }
+
+    private int visibleRows() {
+        return (PANEL_HEIGHT - 104) / PRODUCT_ROW;
+    }
+
+    private List<DashboardSnapshot.ProductLine> visibleProducts(DashboardSnapshot.ShopLine shop) {
+        productScroll = Math.max(0, Math.min(productScroll, Math.max(0, shop.products().size() - visibleRows())));
+        return shop.products().subList(productScroll, Math.min(shop.products().size(), productScroll + visibleRows()));
+    }
+
+    /** Minus and plus change the price by 1, or by 10 while holding Shift. */
+    private void changePrice(DashboardSnapshot.ShopLine shop, DashboardSnapshot.ProductLine product, int sign) {
+        // Widgets aren't rebuilt when only a price changes, so read the price from the latest snapshot.
+        int current = product.price();
+        DashboardSnapshot s = snapshot();
+        if (s != null) {
+            current = s.shops().stream().filter(l -> l.id().equals(shop.id())).flatMap(l -> l.products().stream())
+                    .filter(p -> p.itemId().equals(product.itemId())).mapToInt(DashboardSnapshot.ProductLine::price)
+                    .findFirst().orElse(current);
+        }
+        int step = hasShiftDown() ? 10 : 1;
+        int price = Math.max(PriceRules.MIN_PRICE, Math.min(PriceRules.MAX_PRICE, current + sign * step));
+        if (price != current) {
+            send(DashboardAction.SHOP_PRICE, price, shop.id() + "|" + product.itemId());
+        }
+    }
+
+    private void renderShops(GuiGraphics g, DashboardSnapshot s) {
+        int y = top + 46 + Math.min(8, s.shops().size()) * 18 + 4;
+        if (s.shops().isEmpty()) {
+            y = wrapped(g, Component.translatable("zoocraft.screen.dashboard.no_shops"), left + 10, top + 46, 104, MUTED) + 4;
+        }
+        long detached = s.toilets().stream().filter(DashboardSnapshot.ToiletLine::detached).count();
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.toilets", s.toilets().size()), left + 10, y, HEADING);
+        if (detached > 0) {
+            wrapped(g, Component.translatable("zoocraft.screen.dashboard.toilets_detached", detached), left + 10, y + LINE, 104, WARNING);
+        }
+        DashboardSnapshot.ShopLine shop = selected(s);
+        if (shop == null) {
+            return;
+        }
+        int x = left + 120;
+        String statusKey = switch (shop.status()) {
+            case DashboardSnapshot.SHOP_CLOSED -> "closed";
+            case DashboardSnapshot.SHOP_SOLD_OUT -> "sold_out";
+            case DashboardSnapshot.SHOP_DETACHED -> "detached";
+            default -> "open";
+        };
+        int statusColour = shop.status() == DashboardSnapshot.SHOP_OPEN ? 0xFF6FCF6F : WARNING;
+        Component status = Component.translatable("zoocraft.shop.status." + statusKey);
+        g.drawString(font, status, x, top + 66, statusColour);
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.shop_summary", shop.revenueToday(), shop.containers()),
+                x + font.width(status) + 8, top + 66, MUTED);
+        if (shop.containers() == 0) {
+            g.drawString(font, Component.translatable("zoocraft.screen.dashboard.no_stock_containers"), x, top + 76, WARNING);
+        } else if (shop.stockUnknown()) {
+            g.drawString(font, Component.translatable("zoocraft.screen.dashboard.stock_unknown"), x, top + 76, WARNING);
+        }
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.product_header"), x + 18, top + 86, HEADING);
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.stock_header"), x + 104, top + 86, HEADING);
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.price_header"), x + 132, top + 86, HEADING);
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.sold_header"), x + 192, top + 86, HEADING);
+        if (shop.products().isEmpty()) {
+            wrapped(g, Component.translatable("zoocraft.screen.dashboard.no_products"), x, top + 98, 230, MUTED);
+        }
+        int rowY = top + 96;
+        for (DashboardSnapshot.ProductLine product : visibleProducts(shop)) {
+            g.renderItem(product.icon(), x, rowY);
+            boolean sellable = product.category() != ProductCategory.UNSELLABLE.ordinal();
+            g.drawString(font, font.plainSubstrByWidth(product.icon().getHoverName().getString(), 82), x + 18, rowY, TEXT);
+            String category = ProductCategory.values()[Math.min(product.category(), ProductCategory.values().length - 1)]
+                    .name().toLowerCase(java.util.Locale.ROOT);
+            g.drawString(font, Component.translatable("zoocraft.category." + category), x + 18, rowY + 9, MUTED);
+            int stockColour = product.stock() == 0 ? WARNING : product.stock() <= 4 ? GOLD : TEXT;
+            g.drawString(font, Integer.toString(product.stock()), x + 104, rowY + 4, stockColour);
+            if (sellable) {
+                g.drawString(font, Integer.toString(product.price()), x + 136, rowY + 4, TEXT);
+                String sold = product.soldToday() + (product.missedToday() > 0 ? " (" + product.missedToday() + " missed)" : "");
+                g.drawString(font, sold, x + 192, rowY + 4, product.missedToday() > 0 ? WARNING : TEXT);
+            } else {
+                g.drawString(font, Component.translatable("zoocraft.screen.dashboard.not_for_sale"), x + 132, rowY + 4, MUTED);
+            }
+            rowY += PRODUCT_ROW;
+        }
+        if (shop.products().size() > visibleRows()) {
+            g.drawString(font, Component.translatable("zoocraft.screen.dashboard.scroll"), left + PANEL_WIDTH - 90, top + PANEL_HEIGHT - 12, MUTED);
         }
     }
 
@@ -181,8 +345,10 @@ public class DashboardScreen extends Screen {
 
     /** Things that change which widgets exist; values shown as text don't need a rebuild. */
     private static Object layoutKey(DashboardSnapshot s) {
-        return List.of(s.zooId(), s.viewerIsOwner(), s.open(), s.keepLoaded(), s.chunkLoadingAllowed(),
-                s.managers().stream().map(DashboardSnapshot.ManagerLine::id).toList());
+        return List.of(s.zooId(), s.tab(), s.viewerIsOwner(), s.open(), s.keepLoaded(), s.chunkLoadingAllowed(),
+                s.managers().stream().map(DashboardSnapshot.ManagerLine::id).toList(),
+                s.shops().stream().map(shop -> List.of(shop.id(), shop.name(), shop.status() == DashboardSnapshot.SHOP_CLOSED,
+                        shop.products().stream().map(p -> p.itemId() + "/" + p.category()).toList())).toList());
     }
 
     /** Called when a new snapshot arrives. */
@@ -217,6 +383,7 @@ public class DashboardScreen extends Screen {
         switch (tab) {
             case OVERVIEW -> renderOverview(graphics, s);
             case ANIMALS -> renderAnimals(graphics, s);
+            case SHOPS -> renderShops(graphics, s);
             case SETTINGS -> renderSettings(graphics, s);
         }
     }
@@ -229,6 +396,7 @@ public class DashboardScreen extends Screen {
         g.drawString(font, Component.translatable("zoocraft.screen.dashboard.refused", s.refused()), x, y += LINE, TEXT);
         g.drawString(font, Component.translatable("zoocraft.screen.dashboard.treasury", s.treasury()), x, y += LINE + 4, TEXT);
         g.drawString(font, Component.translatable("zoocraft.screen.dashboard.admission", s.price(), s.admissionIncome()), x, y += LINE, TEXT);
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.shop_income", s.shopIncome()), x, y += LINE, TEXT);
         y += LINE + 4;
         bar(g, x, y, Component.translatable("zoocraft.screen.dashboard.satisfaction"), s.satisfaction());
         bar(g, x, y + LINE + 2, Component.translatable("zoocraft.screen.dashboard.reputation"), s.reputation());
@@ -337,8 +505,13 @@ public class DashboardScreen extends Screen {
 
     @Override
     public boolean mouseScrolled(double mouseX, double mouseY, double scrollX, double scrollY) {
-        if (tab == Tab.ANIMALS) {
+        if (tab == DashboardTab.ANIMALS) {
             scroll = Math.max(0, scroll - (int) Math.signum(scrollY));
+            return true;
+        }
+        if (tab == DashboardTab.SHOPS) {
+            productScroll = Math.max(0, productScroll - (int) Math.signum(scrollY));
+            rebuildWidgets();
             return true;
         }
         return super.mouseScrolled(mouseX, mouseY, scrollX, scrollY);

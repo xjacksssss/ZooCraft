@@ -17,5 +17,11 @@ public enum DashboardAction {
     /** text = manager UUID */
     REMOVE_MANAGER,
     /** text = player name */
-    TRANSFER
+    TRANSFER,
+    /** text = "shopId|itemId", number = price */
+    SHOP_PRICE,
+    /** text = shopId, number = 1 open, 0 closed */
+    SHOP_OPEN,
+    /** text = "shopId|new name" */
+    SHOP_RENAME
 }
