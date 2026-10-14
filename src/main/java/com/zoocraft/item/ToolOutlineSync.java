@@ -50,7 +50,14 @@ public final class ToolOutlineSync {
         List<Zoo> near = zoos.zoosNear(player.level(), player.blockPosition(), CHUNK_RADIUS);
         return new ZooOutlinesPayload(near.stream().limit(64).map(zoo -> new ZooOutlinesPayload.Outline(
                 zoo.id(), zoo.name(), ZooManager.can(player, zoo, ZooPermission.EDIT), zoo.boundary(),
-                zoo.gates().stream().map(g -> marker(zoo, g, gameTime)).toList())).toList());
+                zoo.gates().stream().map(g -> marker(zoo, g, gameTime)).toList(), facilities(zoo))).toList());
+    }
+
+    private static ZooOutlinesPayload.FacilityMarkers facilities(Zoo zoo) {
+        return new ZooOutlinesPayload.FacilityMarkers(
+                zoo.shops().stream().map(s -> new ZooOutlinesPayload.ShopMarker(s.counter(), s.containers(),
+                        s.open() && !zoo.isDetached(s.counter()) && !s.containers().isEmpty())).toList(),
+                zoo.toilets().stream().map(t -> new ZooOutlinesPayload.ToiletMarker(t.pos(), !zoo.isDetached(t.pos()))).toList());
     }
 
     private static ZooOutlinesPayload.GateMarker marker(Zoo zoo, Gate gate, long gameTime) {

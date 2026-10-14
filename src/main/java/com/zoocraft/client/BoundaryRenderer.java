@@ -13,6 +13,7 @@ import net.minecraft.client.player.LocalPlayer;
 import net.minecraft.client.renderer.LevelRenderer;
 import net.minecraft.client.renderer.MultiBufferSource;
 import net.minecraft.client.renderer.RenderType;
+import net.minecraft.core.BlockPos;
 import net.minecraft.world.phys.AABB;
 import net.minecraft.world.phys.Vec3;
 import net.neoforged.api.distmarker.Dist;
@@ -58,6 +59,7 @@ public final class BoundaryRenderer {
                 };
                 LevelRenderer.renderLineBox(poseStack, lines, new AABB(gate.pos()).setMaxY(gate.pos().getY() + 2), c[0], c[1], c[2], 1.0f);
             }
+            drawFacilities(poseStack, lines, outline.facilities());
         }
 
         BoundaryDraftPayload draft = ClientBoundaryState.draft;
@@ -67,6 +69,30 @@ public final class BoundaryRenderer {
 
         poseStack.popPose();
         buffers.endBatch(RenderType.lines());
+    }
+
+    private static final float[] SHOP = {1.0f, 0.75f, 0.1f};
+    private static final float[] TOILET = {0.3f, 0.6f, 1.0f};
+    private static final float[] PROBLEM = {1.0f, 0.2f, 0.2f};
+
+    /** Shop counters in gold with lines to their stock, toilets in blue, anything not working in red. */
+    private static void drawFacilities(PoseStack poseStack, VertexConsumer lines, ZooOutlinesPayload.FacilityMarkers facilities) {
+        PoseStack.Pose pose = poseStack.last();
+        for (ZooOutlinesPayload.ShopMarker shop : facilities.shops()) {
+            float[] c = shop.ok() ? SHOP : PROBLEM;
+            LevelRenderer.renderLineBox(poseStack, lines, new AABB(shop.counter()).deflate(0.1).setMaxY(shop.counter().getY() + 0.25),
+                    c[0], c[1], c[2], 1.0f);
+            for (BlockPos container : shop.containers()) {
+                LevelRenderer.renderLineBox(poseStack, lines, new AABB(container).inflate(0.02), c[0], c[1], c[2], 1.0f);
+                line(lines, pose, shop.counter().getX() + 0.5f, shop.counter().getY() + 0.2f, shop.counter().getZ() + 0.5f,
+                        container.getX() + 0.5f, container.getY() + 0.5f, container.getZ() + 0.5f, c);
+            }
+        }
+        for (ZooOutlinesPayload.ToiletMarker toilet : facilities.toilets()) {
+            float[] c = toilet.ok() ? TOILET : PROBLEM;
+            LevelRenderer.renderLineBox(poseStack, lines, new AABB(toilet.pos()).deflate(0.15).setMaxY(toilet.pos().getY() + 1.8),
+                    c[0], c[1], c[2], 1.0f);
+        }
     }
 
     private static void drawRing(PoseStack poseStack, VertexConsumer lines, List<BoundaryVertex> vertices, boolean closed, float[] colour, int highlighted) {

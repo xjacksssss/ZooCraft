@@ -18,7 +18,7 @@ import net.neoforged.neoforge.network.registration.PayloadRegistrar;
  * loaded when a packet actually arrives on the client.
  */
 public final class ZooNetwork {
-    private static final String VERSION = "1";
+    private static final String VERSION = "2";
 
     private ZooNetwork() {
     }
