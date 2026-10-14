@@ -7,6 +7,7 @@ import com.zoocraft.core.geometry.BoundaryValidator;
 import com.zoocraft.core.geometry.NamedShape;
 import com.zoocraft.core.geometry.Vertex;
 import com.zoocraft.core.ledger.LedgerResult;
+import com.zoocraft.core.rating.Ratings;
 import com.zoocraft.core.ledger.Transaction;
 import com.zoocraft.core.ledger.TransactionType;
 import net.minecraft.core.BlockPos;
@@ -446,6 +447,30 @@ public final class ZooManager {
         data.setDirty();
         fireChanged(zoo);
         return LedgerResult.APPLIED;
+    }
+
+    // ---------------------------------------------------------------- visitor feedback
+
+    /** Tallies a visitor comment for today's dashboard summary. */
+    public void recordComment(Zoo zoo, String commentKey) {
+        zoo.stats().rollDay(server.overworld().getGameTime() / 24000L);
+        zoo.stats().commentTally.merge(commentKey, 1, Integer::sum);
+        data.setDirty();
+    }
+
+    public void recordRefusal(Zoo zoo, int visitors) {
+        zoo.stats().refusedAdmissions += visitors;
+        data.setDirty();
+        fireChanged(zoo);
+    }
+
+    /** A visitor has left: satisfaction moves a small step towards their final mood, reputation follows slowly. */
+    public void recordDeparture(Zoo zoo, double visitorSatisfaction) {
+        double satisfaction = Ratings.blend(zoo.satisfaction(), visitorSatisfaction, Ratings.SATISFACTION_WEIGHT);
+        zoo.setSatisfaction((float) satisfaction);
+        zoo.setReputation((float) Ratings.blend(zoo.reputation(), satisfaction, Ratings.REPUTATION_WEIGHT));
+        data.setDirty();
+        fireChanged(zoo);
     }
 
     // ---------------------------------------------------------------- helpers

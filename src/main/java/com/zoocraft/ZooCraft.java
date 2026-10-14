@@ -1,7 +1,9 @@
 package com.zoocraft;
 
 import com.mojang.logging.LogUtils;
+import com.zoocraft.chunk.ZooChunkLoader;
 import com.zoocraft.config.ZooConfig;
+import com.zoocraft.registry.ZooEntities;
 import com.zoocraft.network.ZooNetwork;
 import com.zoocraft.registry.ZooItems;
 import net.minecraft.resources.ResourceLocation;
@@ -19,6 +21,8 @@ public final class ZooCraft {
     public ZooCraft(IEventBus modBus, ModContainer container) {
         container.registerConfig(ModConfig.Type.SERVER, ZooConfig.SPEC);
         ZooItems.register(modBus);
+        ZooEntities.register(modBus);
+        ZooChunkLoader.register(modBus);
         ZooNetwork.register(modBus);
     }
 

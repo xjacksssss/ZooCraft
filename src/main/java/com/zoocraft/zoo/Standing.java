@@ -39,6 +39,19 @@ public final class Standing {
         return Optional.empty();
     }
 
+    /**
+     * A standable spot in the column at (x, z): first the nearest one within {@code range} of {@code nearY}
+     * (so roofs, trees and caves don't mislead it), then the top surface.
+     */
+    public static Optional<BlockPos> findInColumn(net.minecraft.world.level.Level level, int x, int nearY, int z, int range) {
+        Optional<BlockPos> near = findStandable(level, new BlockPos(x, nearY, z), range);
+        if (near.isPresent()) {
+            return near;
+        }
+        BlockPos top = new BlockPos(x, level.getHeight(net.minecraft.world.level.levelgen.Heightmap.Types.MOTION_BLOCKING_NO_LEAVES, x, z), z);
+        return isStandable(level, top) ? Optional.of(top) : Optional.empty();
+    }
+
     private static boolean isPassable(BlockGetter level, BlockPos pos, boolean feet) {
         BlockState state = level.getBlockState(pos);
         if (state.is(BlockTags.DOORS) || state.is(BlockTags.FENCE_GATES)) {

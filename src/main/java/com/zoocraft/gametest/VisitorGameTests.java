@@ -1,0 +1,172 @@
+package com.zoocraft.gametest;
+
+import com.zoocraft.ZooCraft;
+import com.zoocraft.core.visitor.VisitorProfile;
+import com.zoocraft.registry.ZooEntities;
+import com.zoocraft.visitor.Admission;
+import com.zoocraft.visitor.Visitor;
+import com.zoocraft.visitor.VisitorPhase;
+import com.zoocraft.visitor.VisitorSpawner;
+import com.zoocraft.zoo.Gate;
+import com.zoocraft.zoo.Zoo;
+import com.zoocraft.zoo.ZooManager;
+import net.minecraft.core.BlockPos;
+import net.minecraft.gametest.framework.GameTest;
+import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.nbt.CompoundTag;
+import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.level.block.Blocks;
+import net.neoforged.neoforge.gametest.GameTestHolder;
+import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
+
+import java.util.List;
+import java.util.UUID;
+
+/**
+ * Visitor behaviour in a real world. Most tests use the large floor with a zoo covering x 16..44 and a gate on its
+ * west edge at x=16, so visitors leaving westwards stay on the floor.
+ */
+@GameTestHolder(ZooCraft.MOD_ID)
+@PrefixGameTestTemplate(false)
+public final class VisitorGameTests {
+    private static final BlockPos GATE = new BlockPos(16, 2, 24);
+
+    private record Setup(ServerPlayer owner, Zoo zoo, Gate gate) {
+    }
+
+    private static Setup openZoo(GameTestHelper helper, int price) {
+        ServerPlayer owner = TestZoos.player(helper, "Owner");
+        Zoo zoo = TestZoos.create(helper, owner, "Visitors", TestZoos.rectangle(helper, 16, 4, 44, 44));
+        ZooManager zoos = TestZoos.manager(helper);
+        helper.assertTrue(zoos.addGate(owner, helper.getLevel(), helper.absolutePos(GATE)).success(), "gate not added");
+        zoos.setPrice(owner, zoo, price);
+        zoos.setOpen(owner, zoo, true);
+        return new Setup(owner, zoo, zoo.gates().getFirst());
+    }
+
+    private static Visitor visitor(GameTestHelper helper, Setup setup, UUID group, boolean leader, int x, int z, int budget) {
+        Visitor visitor = ZooEntities.VISITOR.get().create(helper.getLevel());
+        BlockPos at = helper.absolutePos(new BlockPos(x, 2, z));
+        visitor.moveTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5, 0, 0);
+        visitor.begin(setup.zoo(), setup.gate(), group, leader);
+        visitor.testSetBudget(VisitorProfile.GENERAL, budget, 1.0);
+        helper.getLevel().addFreshEntity(visitor);
+        return visitor;
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE)
+    public static void admissionIsChargedOnceEvenAfterSaveAndLoad(GameTestHelper helper) {
+        Setup setup = openZoo(helper, 3);
+        ZooManager zoos = TestZoos.manager(helper);
+        Visitor visitor = visitor(helper, setup, UUID.randomUUID(), true, 10, 24, 10);
+
+        helper.assertTrue(Admission.tryAdmitGroup(zoos, setup.zoo(), List.of(visitor)), "admission refused");
+        helper.assertTrue(Admission.tryAdmitGroup(zoos, setup.zoo(), List.of(visitor)), "second admission refused");
+        helper.assertTrue(setup.zoo().ledger().balance() == 3, "charged more than once: " + setup.zoo().ledger().balance());
+        helper.assertTrue(visitor.budget() == 7, "budget wrong: " + visitor.budget());
+
+        // A saved and reloaded copy of the same visit must not pay again either.
+        CompoundTag saved = new CompoundTag();
+        visitor.saveWithoutId(saved);
+        Visitor copy = ZooEntities.VISITOR.get().create(helper.getLevel());
+        copy.load(saved);
+        helper.assertTrue(copy.admitted(), "admitted flag lost on save");
+        helper.assertTrue(Admission.tryAdmitGroup(zoos, setup.zoo(), List.of(copy)), "reloaded admission refused");
+        helper.assertTrue(setup.zoo().ledger().balance() == 3, "reloaded visitor paid again");
+        helper.assertTrue(setup.zoo().stats().totalAttendance() == 1, "attendance counted twice");
+
+        visitor.discard();
+        TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
+        helper.succeed();
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE)
+    public static void groupRefusesTogetherWithoutPaying(GameTestHelper helper) {
+        Setup setup = openZoo(helper, 3);
+        UUID group = UUID.randomUUID();
+        Visitor rich = visitor(helper, setup, group, true, 10, 24, 12);
+        Visitor poor = visitor(helper, setup, group, false, 10, 25, 1);
+
+        helper.assertFalse(Admission.tryAdmitGroup(TestZoos.manager(helper), setup.zoo(), List.of(rich, poor)), "group admitted");
+        helper.assertTrue(setup.zoo().ledger().balance() == 0, "money moved");
+        helper.assertTrue(rich.budget() == 12 && poor.budget() == 1, "budgets changed");
+        helper.assertFalse(rich.admitted() || poor.admitted(), "someone was admitted");
+        helper.assertTrue(setup.zoo().stats().refusedAdmissions() == 2, "refusal not recorded");
+
+        rich.discard();
+        poor.discard();
+        TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
+        helper.succeed();
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1600)
+    public static void closingTheZooMakesVisitorsLeave(GameTestHelper helper) {
+        Setup setup = openZoo(helper, 0);
+        Visitor visitor = visitor(helper, setup, UUID.randomUUID(), true, 30, 24, 10);
+        visitor.testSetPhase(VisitorPhase.EXPLORING);
+        helper.runAfterDelay(40, () -> TestZoos.manager(helper).setOpen(setup.owner(), setup.zoo(), false));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(visitor.isRemoved(), "visitor still here, phase " + visitor.phase());
+            TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1800)
+    public static void walledInVisitorIsReleasedWithComplaint(GameTestHelper helper) {
+        Setup setup = openZoo(helper, 0);
+        for (int x = 27; x <= 33; x++) {
+            for (int z = 21; z <= 27; z++) {
+                if (x == 27 || x == 33 || z == 21 || z == 27) {
+                    for (int y = 2; y <= 4; y++) {
+                        helper.setBlock(new BlockPos(x, y, z), Blocks.STONE);
+                    }
+                }
+            }
+        }
+        Visitor visitor = visitor(helper, setup, UUID.randomUUID(), true, 30, 24, 10);
+        visitor.testSetPhase(VisitorPhase.EXPLORING);
+        helper.runAfterDelay(20, () -> TestZoos.manager(helper).setOpen(setup.owner(), setup.zoo(), false));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(visitor.isRemoved(), "visitor still trapped, phase " + visitor.phase());
+            helper.assertTrue(setup.zoo().stats().commentTally().getOrDefault("could_not_leave", 0) >= 1, "complaint not recorded");
+            TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE)
+    public static void boundaryEditReleasesVisitorsLeftOutside(GameTestHelper helper) {
+        Setup setup = openZoo(helper, 0);
+        Visitor visitor = visitor(helper, setup, UUID.randomUUID(), true, 40, 40, 10);
+        visitor.testSetPhase(VisitorPhase.EXPLORING);
+        helper.assertTrue(TestZoos.manager(helper).editBoundary(setup.owner(), setup.zoo(),
+                TestZoos.rectangle(helper, 16, 4, 30, 30)).success(), "edit failed");
+        helper.assertTrue(visitor.phase() == VisitorPhase.EXITING, "visitor not released, phase " + visitor.phase());
+        visitor.discard();
+        TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
+        helper.succeed();
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 2400)
+    public static void spawnedVisitorsArrivePayAndExplore(GameTestHelper helper) {
+        ServerPlayer owner = TestZoos.player(helper, "Owner");
+        Zoo zoo = TestZoos.create(helper, owner, "Arrivals", TestZoos.rectangle(helper, 34, 2, 46, 46));
+        ZooManager zoos = TestZoos.manager(helper);
+        helper.assertTrue(zoos.addGate(owner, helper.getLevel(), helper.absolutePos(new BlockPos(34, 2, 24))).success(), "gate not added");
+        zoos.setPrice(owner, zoo, 1);
+        zoos.setOpen(owner, zoo, true);
+        List<Visitor> group = List.of();
+        for (int i = 0; i < 10 && group.isEmpty(); i++) {
+            group = VisitorSpawner.trySpawnGroup(helper.getLevel(), zoo);
+        }
+        helper.assertFalse(group.isEmpty(), "no visitors could be spawned");
+        List<Visitor> spawned = group;
+        helper.succeedWhen(() -> {
+            helper.assertTrue(zoo.stats().totalAttendance() >= spawned.size(), "attendance " + zoo.stats().totalAttendance()
+                    + ", phases " + spawned.stream().map(Visitor::phase).toList());
+            helper.assertTrue(zoo.ledger().balance() == zoo.stats().totalAttendance(), "balance does not match attendance");
+            helper.assertTrue(spawned.stream().allMatch(v -> v.phase() == VisitorPhase.EXPLORING), "not all exploring");
+            spawned.forEach(Visitor::discard);
+            TestZoos.cleanUp(helper, owner, zoo);
+        });
+    }
+}
