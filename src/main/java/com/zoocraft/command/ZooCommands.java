@@ -12,6 +12,7 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.mojang.brigadier.exceptions.SimpleCommandExceptionType;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
 import com.zoocraft.ZooCraft;
+import com.zoocraft.dashboard.DashboardService;
 import com.zoocraft.item.BoundaryDrafts;
 import com.zoocraft.zoo.ActionResult;
 import com.zoocraft.zoo.Gate;
@@ -41,7 +42,7 @@ import java.util.UUID;
 public final class ZooCommands {
     private static final String ZOO = "zoo";
 
-    private static final SuggestionProvider<CommandSourceStack> ZOO_NAMES = (context, builder) -> {
+    static final SuggestionProvider<CommandSourceStack> ZOO_NAMES = (context, builder) -> {
         ServerPlayer player = context.getSource().getPlayer();
         ZooManager zoos = ZooManager.get(context.getSource().getServer());
         List<Zoo> visible = player == null ? List.copyOf(zoos.all()) : zoos.managedBy(player);
@@ -58,7 +59,11 @@ public final class ZooCommands {
 
     static void register(CommandDispatcher<CommandSourceStack> dispatcher) {
         dispatcher.register(Commands.literal("zoo")
-                .executes(c -> info(c, null))
+                .executes(c -> {
+                    DashboardService.open(c.getSource().getPlayerOrException(), Optional.empty());
+                    return 1;
+                })
+                .then(ZooDebugCommands.build())
                 .then(Commands.literal("list").executes(ZooCommands::list))
                 .then(withZoo(Commands.literal("info"), (c, zoo) -> info(c, zoo)))
                 .then(withZoo(Commands.literal("open"), (c, zoo) -> act(c, (zoos, p) -> zoos.setOpen(p, zoo, true))))
@@ -102,13 +107,13 @@ public final class ZooCommands {
         return node.executes(c -> command.run(c, implicitZoo(c))).then(named);
     }
 
-    private static Zoo namedZoo(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+    static Zoo namedZoo(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         String name = StringArgumentType.getString(context, ZOO);
         return ZooManager.get(context.getSource().getServer()).byName(name)
                 .orElseThrow(() -> error(Component.translatable("zoocraft.cmd.no_such_zoo", name)));
     }
 
-    private static Zoo implicitZoo(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
+    static Zoo implicitZoo(CommandContext<CommandSourceStack> context) throws CommandSyntaxException {
         ServerPlayer player = context.getSource().getPlayerOrException();
         ZooManager zoos = ZooManager.get(context.getSource().getServer());
         Optional<Zoo> here = zoos.zooAt(player.level(), player.blockPosition());
@@ -203,8 +208,7 @@ public final class ZooCommands {
     }
 
     static String name(MinecraftServer server, UUID id) {
-        return server.getProfileCache() == null ? id.toString().substring(0, 8)
-                : server.getProfileCache().get(id).map(GameProfile::getName).orElse(id.toString().substring(0, 8));
+        return com.zoocraft.zoo.PlayerNames.name(server, id);
     }
 
     private static CommandSyntaxException error(Component message) {

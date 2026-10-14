@@ -1,7 +1,10 @@
 package com.zoocraft.network;
 
 import com.zoocraft.client.ClientPayloadHandlers;
+import com.zoocraft.dashboard.DashboardService;
 import com.zoocraft.item.BoundaryDrafts;
+import com.zoocraft.zoo.ActionResult;
+import net.minecraft.ChatFormatting;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.network.event.RegisterPayloadHandlersEvent;
@@ -31,7 +34,24 @@ public final class ZooNetwork {
         registrar.playToClient(OpenNameZooScreenPayload.TYPE, OpenNameZooScreenPayload.STREAM_CODEC,
                 (payload, context) -> ClientPayloadHandlers.openNameZooScreen());
 
+        registrar.playToClient(DashboardSnapshot.TYPE, DashboardSnapshot.STREAM_CODEC,
+                (payload, context) -> ClientPayloadHandlers.dashboard(payload));
+        registrar.playToClient(DashboardPayloads.ZooList.TYPE, DashboardPayloads.ZooList.STREAM_CODEC,
+                (payload, context) -> ClientPayloadHandlers.zooList(payload));
+        registrar.playToClient(DashboardPayloads.Closed.TYPE, DashboardPayloads.Closed.STREAM_CODEC,
+                (payload, context) -> ClientPayloadHandlers.dashboardClosed());
+
         registrar.playToServer(CreateZooPayload.TYPE, CreateZooPayload.STREAM_CODEC,
                 (payload, context) -> BoundaryDrafts.finishCreate((ServerPlayer) context.player(), payload.name()));
+        registrar.playToServer(DashboardPayloads.OpenRequest.TYPE, DashboardPayloads.OpenRequest.STREAM_CODEC,
+                (payload, context) -> DashboardService.open((ServerPlayer) context.player(), payload.zooId()));
+        registrar.playToServer(DashboardPayloads.Close.TYPE, DashboardPayloads.Close.STREAM_CODEC,
+                (payload, context) -> DashboardService.close((ServerPlayer) context.player()));
+        registrar.playToServer(DashboardPayloads.Action.TYPE, DashboardPayloads.Action.STREAM_CODEC, (payload, context) -> {
+            ServerPlayer player = (ServerPlayer) context.player();
+            ActionResult result = DashboardService.handle(player, payload);
+            player.displayClientMessage(result.message().copy().withStyle(result.success() ? ChatFormatting.GREEN : ChatFormatting.RED), true);
+            result.notes().forEach(note -> player.sendSystemMessage(note.copy().withStyle(ChatFormatting.GOLD)));
+        });
     }
 }

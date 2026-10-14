@@ -1,6 +1,8 @@
 package com.zoocraft.client;
 
 import com.zoocraft.network.BoundaryDraftPayload;
+import com.zoocraft.network.DashboardPayloads;
+import com.zoocraft.network.DashboardSnapshot;
 import com.zoocraft.network.ZooOutlinesPayload;
 import net.minecraft.client.Minecraft;
 
@@ -19,5 +21,26 @@ public final class ClientPayloadHandlers {
 
     public static void openNameZooScreen() {
         Minecraft.getInstance().setScreen(new NameZooScreen());
+    }
+
+    public static void dashboard(DashboardSnapshot snapshot) {
+        ClientDashboardState.current = snapshot;
+        Minecraft minecraft = Minecraft.getInstance();
+        if (minecraft.screen instanceof DashboardScreen screen) {
+            screen.onSnapshot();
+        } else if (snapshot.openScreen()) {
+            minecraft.setScreen(new DashboardScreen());
+        }
+    }
+
+    public static void zooList(DashboardPayloads.ZooList list) {
+        Minecraft.getInstance().setScreen(new ZooPickerScreen(list.zoos()));
+    }
+
+    public static void dashboardClosed() {
+        if (Minecraft.getInstance().screen instanceof DashboardScreen) {
+            Minecraft.getInstance().setScreen(null);
+        }
+        ClientDashboardState.current = null;
     }
 }

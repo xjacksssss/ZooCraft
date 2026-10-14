@@ -18,6 +18,7 @@ public final class ZooCraftClient {
         container.registerConfig(ModConfig.Type.CLIENT, ZooClientConfig.SPEC);
         container.registerExtensionPoint(IConfigScreenFactory.class, ConfigurationScreen::new);
         modBus.addListener(ZooCraftClient::onRegisterRenderers);
+        modBus.addListener(ZooKeys::onRegisterKeys);
     }
 
     private static void onRegisterRenderers(EntityRenderersEvent.RegisterRenderers event) {
