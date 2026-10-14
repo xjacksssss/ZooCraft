@@ -24,8 +24,8 @@ public final class ZooManagerGameTests {
         Zoo zoo = TestZoos.create(helper, owner, "Create", TestZoos.rectangle(helper, 2, 2, 29, 29));
         ZooManager zoos = TestZoos.manager(helper);
         helper.assertTrue(zoo.owner().equals(owner.getUUID()), "owner not set");
-        helper.assertTrue(zoos.zooAt(helper.getLevel(), helper.absolutePos(new BlockPos(15, 1, 15))).orElse(null) == zoo, "zoo not found inside");
-        helper.assertTrue(zoos.zooAt(helper.getLevel(), helper.absolutePos(new BlockPos(31, 1, 15))).isEmpty(), "zoo found outside");
+        helper.assertTrue(zoos.zooAt(helper.getLevel(), helper.absolutePos(new BlockPos(15, 2, 15))).orElse(null) == zoo, "zoo not found inside");
+        helper.assertTrue(zoos.zooAt(helper.getLevel(), helper.absolutePos(new BlockPos(31, 2, 15))).isEmpty(), "zoo found outside");
         TestZoos.cleanUp(helper, owner, zoo);
         helper.succeed();
     }
@@ -95,7 +95,7 @@ public final class ZooManagerGameTests {
         ServerPlayer owner = TestZoos.player(helper, "Owner");
         ZooManager zoos = TestZoos.manager(helper);
         Zoo zoo = TestZoos.create(helper, owner, "Edit", TestZoos.rectangle(helper, 2, 2, 29, 29));
-        helper.assertTrue(zoos.addGate(owner, helper.getLevel(), helper.absolutePos(new BlockPos(2, 1, 15))).success(), "gate not added");
+        helper.assertTrue(zoos.addGate(owner, helper.getLevel(), helper.absolutePos(new BlockPos(2, 2, 15))).success(), "gate not added");
         owner.getInventory().add(new ItemStack(Items.EMERALD, 12));
         zoos.deposit(owner, zoo, 12);
 
@@ -187,8 +187,8 @@ public final class ZooManagerGameTests {
         ZooManager zoos = TestZoos.manager(helper);
         Zoo zoo = TestZoos.create(helper, owner, "Gates", TestZoos.rectangle(helper, 2, 2, 29, 29));
         helper.assertFalse(zoos.setOpen(owner, zoo, true).success(), "opened without a gate");
-        helper.assertFalse(zoos.addGate(owner, helper.getLevel(), helper.absolutePos(new BlockPos(15, 1, 15))).success(), "gate far from edge accepted");
-        helper.assertTrue(zoos.addGate(owner, helper.getLevel(), helper.absolutePos(new BlockPos(3, 1, 15))).success(), "gate near edge refused");
+        helper.assertFalse(zoos.addGate(owner, helper.getLevel(), helper.absolutePos(new BlockPos(15, 2, 15))).success(), "gate far from edge accepted");
+        helper.assertTrue(zoos.addGate(owner, helper.getLevel(), helper.absolutePos(new BlockPos(3, 2, 15))).success(), "gate near edge refused");
         helper.assertTrue(zoos.setOpen(owner, zoo, true).success(), "could not open with a gate");
         TestZoos.cleanUp(helper, owner, zoo);
         helper.succeed();

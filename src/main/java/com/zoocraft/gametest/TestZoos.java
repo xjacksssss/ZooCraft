@@ -26,10 +26,10 @@ public final class TestZoos {
         return ZooManager.get(helper.getLevel().getServer());
     }
 
-    /** A rectangle from relative (x1, z1) to (x2, z2) at floor height y=1. */
+    /** A rectangle from relative (x1, z1) to (x2, z2) standing height (floor is at relative y=1). */
     public static List<BoundaryVertex> rectangle(GameTestHelper helper, int x1, int z1, int x2, int z2) {
-        BlockPos a = helper.absolutePos(new BlockPos(x1, 1, z1));
-        BlockPos b = helper.absolutePos(new BlockPos(x2, 1, z2));
+        BlockPos a = helper.absolutePos(new BlockPos(x1, 2, z1));
+        BlockPos b = helper.absolutePos(new BlockPos(x2, 2, z2));
         int minX = Math.min(a.getX(), b.getX()), maxX = Math.max(a.getX(), b.getX());
         int minZ = Math.min(a.getZ(), b.getZ()), maxZ = Math.max(a.getZ(), b.getZ());
         return List.of(new BoundaryVertex(minX, a.getY(), minZ), new BoundaryVertex(maxX, a.getY(), minZ),

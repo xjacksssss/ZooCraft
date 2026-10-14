@@ -24,8 +24,8 @@ public final class ZooDataGameTests {
         ZooManager zoos = TestZoos.manager(helper);
         Zoo zoo = TestZoos.create(helper, owner, "Round Trip", TestZoos.rectangle(helper, 2, 2, 29, 29));
         zoos.addManager(owner, zoo, manager.getGameProfile());
-        zoos.addGate(owner, helper.getLevel(), helper.absolutePos(new BlockPos(2, 1, 10)));
-        zoos.addGate(owner, helper.getLevel(), helper.absolutePos(new BlockPos(29, 1, 20)));
+        zoos.addGate(owner, helper.getLevel(), helper.absolutePos(new BlockPos(2, 2, 10)));
+        zoos.addGate(owner, helper.getLevel(), helper.absolutePos(new BlockPos(29, 2, 20)));
         zoos.setPrice(owner, zoo, 7);
         owner.getInventory().add(new ItemStack(Items.EMERALD, 30));
         zoos.deposit(owner, zoo, 30);

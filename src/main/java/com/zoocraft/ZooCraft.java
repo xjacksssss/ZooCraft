@@ -2,6 +2,8 @@ package com.zoocraft;
 
 import com.mojang.logging.LogUtils;
 import com.zoocraft.config.ZooConfig;
+import com.zoocraft.network.ZooNetwork;
+import com.zoocraft.registry.ZooItems;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
@@ -16,6 +18,8 @@ public final class ZooCraft {
 
     public ZooCraft(IEventBus modBus, ModContainer container) {
         container.registerConfig(ModConfig.Type.SERVER, ZooConfig.SPEC);
+        ZooItems.register(modBus);
+        ZooNetwork.register(modBus);
     }
 
     public static ResourceLocation id(String path) {
