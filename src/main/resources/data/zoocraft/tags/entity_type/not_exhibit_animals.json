@@ -1,0 +1,15 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:villager",
+    "minecraft:wandering_trader",
+    "minecraft:iron_golem",
+    "minecraft:snow_golem",
+    "zoocraft:visitor",
+    { "id": "minecolonies:citizen", "required": false },
+    { "id": "minecolonies:visitor", "required": false },
+    { "id": "iceandfire:fire_dragon", "required": false },
+    { "id": "iceandfire:ice_dragon", "required": false },
+    { "id": "iceandfire:lightning_dragon", "required": false }
+  ]
+}

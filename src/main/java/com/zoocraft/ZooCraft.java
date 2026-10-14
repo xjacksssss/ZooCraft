@@ -1,6 +1,7 @@
 package com.zoocraft;
 
 import com.mojang.logging.LogUtils;
+import com.zoocraft.animal.AnimalRecognition;
 import com.zoocraft.chunk.ZooChunkLoader;
 import com.zoocraft.config.ZooConfig;
 import com.zoocraft.registry.ZooEntities;
@@ -23,6 +24,7 @@ public final class ZooCraft {
         ZooItems.register(modBus);
         ZooEntities.register(modBus);
         ZooChunkLoader.register(modBus);
+        AnimalRecognition.register(modBus);
         ZooNetwork.register(modBus);
     }
 

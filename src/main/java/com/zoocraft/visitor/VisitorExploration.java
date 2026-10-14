@@ -1,18 +1,38 @@
 package com.zoocraft.visitor;
 
+import com.zoocraft.animal.AnimalCensus;
+import com.zoocraft.animal.Exhibit;
+import com.zoocraft.animal.Viewing;
+import com.zoocraft.animal.ZooCensus;
+import com.zoocraft.config.ZooConfig;
+import com.zoocraft.core.choice.ExhibitChoice;
+import com.zoocraft.core.choice.ExhibitOption;
+import com.zoocraft.core.visitor.VisitorProfile;
+import com.zoocraft.feedback.CommentType;
+import com.zoocraft.zoo.Standing;
 import com.zoocraft.zoo.Zoo;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
+import net.minecraft.world.entity.Mob;
+import net.minecraft.world.phys.Vec3;
 
+import java.util.ArrayList;
+import java.util.Comparator;
+import java.util.List;
 import java.util.Optional;
 
 /**
- * Where admitted visitors go next. Group members stay near their leader; otherwise visitors wander to
- * standable spots inside the zoo near where they are.
+ * Where admitted visitors go and what they see (spec sections 8.4 to 8.6). Reads only the cached census.
  */
 final class VisitorExploration {
     private static final int WANDER_RADIUS = 20;
     private static final int ATTEMPTS = 10;
+    private static final int RECENT_MEMORY = 3;
+    private static final int MAX_ANIMALS_CHECKED = 8;
+    private static final int MANY_SPECIES = 5;
+    private static final int REPEATS_BEFORE_COMPLAINT = 3;
+    private static final double INTEREST_FOR_NEW_SPECIES = 15;
+    private static final long UNREACHABLE_TICKS = 60 * 20;
 
     private VisitorExploration() {
     }
@@ -25,6 +45,31 @@ final class VisitorExploration {
                 return near;
             }
         }
+        ZooCensus census = AnimalCensus.of(zoo, level);
+        if (census.animals().isEmpty()) {
+            visitor.remarkOnce(CommentType.NOTHING_TO_SEE);
+            visitor.changeInterest(-20);
+            visitor.currentExhibit = null;
+            return randomSpot(visitor, zoo, level, visitor.blockPosition(), WANDER_RADIUS);
+        }
+        long now = level.getGameTime();
+        List<Exhibit> usable = census.exhibits().stream()
+                .filter(e -> !e.isUnreachable(now) && !e.viewingSpots().isEmpty()).toList();
+        if (!usable.isEmpty()) {
+            List<ExhibitOption> options = new ArrayList<>();
+            for (Exhibit exhibit : usable) {
+                double distance = Math.sqrt(exhibit.centre().distanceToSqr(visitor.position()));
+                options.add(new ExhibitOption(exhibit.species(), distance, visitor.recentExhibits.contains(exhibit.id())));
+            }
+            int index = ExhibitChoice.pick(options, visitor.seenSpecies(), visitor.profile() == VisitorProfile.ANIMAL_ENTHUSIAST,
+                    visitor.getRandom().nextDouble());
+            Exhibit chosen = usable.get(index);
+            visitor.currentExhibit = chosen.id();
+            List<BlockPos> spots = chosen.viewingSpots();
+            // Spots are sorted best first; favour the first few but spread visitors out a little.
+            return Optional.of(spots.get(visitor.getRandom().nextInt(Math.min(3, spots.size()))));
+        }
+        visitor.currentExhibit = null;
         return randomSpot(visitor, zoo, level, visitor.blockPosition(), WANDER_RADIUS);
     }
 
@@ -35,7 +80,7 @@ final class VisitorExploration {
             if (!zoo.shape().containsBlock(x, z) || !level.isLoaded(new BlockPos(x, 0, z))) {
                 continue;
             }
-            Optional<BlockPos> feet = com.zoocraft.zoo.Standing.findInColumn(level, x, around.getY(), z, 4);
+            Optional<BlockPos> feet = Standing.findInColumn(level, x, around.getY(), z, 4);
             if (feet.isPresent() && VisitorController.goodSpot(level, zoo, feet.get())) {
                 return feet;
             }
@@ -57,15 +102,80 @@ final class VisitorExploration {
         return Optional.empty();
     }
 
-    /** Called every step while exploring; M3 uses it for animal viewing. */
+    /** Every step while exploring: look at nearby animals (about once a second). */
     static void observe(Visitor visitor, Zoo zoo, long now) {
+        if (!(visitor.level() instanceof ServerLevel level) || (now / VisitorController.STEP) % 2 != 0) {
+            return;
+        }
+        ZooCensus census = AnimalCensus.cached(zoo);
+        if (census.animals().isEmpty()) {
+            return;
+        }
+        int radius = ZooConfig.VIEWING_RADIUS.get();
+        double reachSq = (radius + 1.0) * (radius + 1.0);
+        Vec3 feet = visitor.position();
+        List<Mob> near = new ArrayList<>();
+        for (Mob animal : census.animals()) {
+            if (animal.isAlive() && animal.distanceToSqr(feet) <= reachSq + Viewing.MAX_VERTICAL * Viewing.MAX_VERTICAL) {
+                near.add(animal);
+            }
+        }
+        near.sort(Comparator.comparingDouble(a -> a.distanceToSqr(feet)));
+        Vec3 eye = visitor.getEyePosition();
+        for (int i = 0; i < Math.min(MAX_ANIMALS_CHECKED, near.size()); i++) {
+            Mob animal = near.get(i);
+            if (!Viewing.canSee(level, eye, feet, animal, radius)) {
+                continue;
+            }
+            census.exhibitContaining(animal).ifPresent(exhibit -> {
+                if (visitor.exhibitsViewed.add(exhibit.id())) {
+                    exhibit.addView();
+                }
+            });
+            String species = census.speciesOf(animal);
+            if (!species.isEmpty() && visitor.seenSpecies.add(species)) {
+                visitor.changeInterest(INTEREST_FOR_NEW_SPECIES);
+                visitor.remark(CommentType.AMAZING_EXHIBIT);
+                if (visitor.seenSpecies.size() >= MANY_SPECIES) {
+                    visitor.remarkOnce(CommentType.MANY_ANIMALS);
+                }
+                visitor.getLookControl().setLookAt(animal);
+            }
+        }
     }
 
-    /** Called when the visitor reaches its chosen spot. */
+    /** The visitor reached the spot it chose. */
     static void onArrived(Visitor visitor, Zoo zoo, long now) {
+        if (visitor.currentExhibit == null) {
+            return;
+        }
+        AnimalCensus.cached(zoo).exhibit(visitor.currentExhibit).ifPresent(exhibit -> {
+            exhibit.markReached(now);
+            if (visitor.seenSpecies().containsAll(exhibit.species())) {
+                visitor.repeatVisits++;
+                if (visitor.repeatVisits >= REPEATS_BEFORE_COMPLAINT) {
+                    visitor.remarkOnce(CommentType.SAME_ANIMALS);
+                    visitor.changeInterest(-10);
+                }
+            }
+        });
+        visitor.recentExhibits.addFirst(visitor.currentExhibit);
+        while (visitor.recentExhibits.size() > RECENT_MEMORY) {
+            visitor.recentExhibits.removeLast();
+        }
+        // Look at the exhibit's animals while lingering.
+        AnimalCensus.cached(zoo).exhibit(visitor.currentExhibit).flatMap(e -> e.animals().stream().filter(Mob::isAlive).findFirst())
+                .ifPresent(animal -> visitor.getLookControl().setLookAt(animal));
     }
 
-    /** Called when the visitor could not reach its chosen spot. */
+    /** The visitor could not reach the spot it chose. */
     static void onUnreachable(Visitor visitor, Zoo zoo) {
+        if (visitor.currentExhibit == null) {
+            return;
+        }
+        long now = visitor.level().getGameTime();
+        AnimalCensus.cached(zoo).exhibit(visitor.currentExhibit).ifPresent(e -> e.markUnreachable(now + UNREACHABLE_TICKS));
+        visitor.remark(CommentType.CANT_REACH_EXHIBIT);
+        visitor.currentExhibit = null;
     }
 }

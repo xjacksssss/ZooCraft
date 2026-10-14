@@ -86,6 +86,15 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
     PathRules pathRules = PathRules.ANYWHERE;
     private int commentTicks;
     private boolean departed;
+    /** Shown comments are rate-limited so visitors don't chatter constantly; the effects always apply. */
+    private long lastShownComment = Long.MIN_VALUE / 2;
+    private static final long COMMENT_GAP_TICKS = 15 * 20;
+    // Exhibit tracking for this visit.
+    @Nullable UUID currentExhibit;
+    final java.util.Deque<UUID> recentExhibits = new java.util.ArrayDeque<>();
+    final Set<UUID> exhibitsViewed = new HashSet<>();
+    int repeatVisits;
+    final java.util.EnumSet<CommentType> saidOnce = java.util.EnumSet.noneOf(CommentType.class);
 
     public Visitor(EntityType<? extends Visitor> type, Level level) {
         super(type, level);
@@ -244,8 +253,29 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
 
     /** Shows a comment above the visitor's head, applies its mood effect and tallies it on the zoo. */
     public void say(CommentType type) {
+        lastShownComment = level().getGameTime();
         entityData.set(DATA_COMMENT, type.translationKey());
         commentTicks = COMMENT_TICKS;
+        react(type);
+    }
+
+    /** Like {@link #say}, but only shows the text if the visitor hasn't spoken recently. The effects always apply. */
+    public void remark(CommentType type) {
+        if (level().getGameTime() - lastShownComment >= COMMENT_GAP_TICKS) {
+            say(type);
+        } else {
+            react(type);
+        }
+    }
+
+    /** {@link #remark} at most once per visit. */
+    public void remarkOnce(CommentType type) {
+        if (saidOnce.add(type)) {
+            remark(type);
+        }
+    }
+
+    private void react(CommentType type) {
         changeSatisfaction(type.satisfactionEffect());
         if (level().getServer() != null) {
             zoo().ifPresent(zoo -> ZooManager.get(level().getServer()).recordComment(zoo, type.key()));
