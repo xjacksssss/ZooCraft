@@ -18,6 +18,12 @@ public final class ZooConfig {
     public static final ModConfigSpec.IntValue MAX_BOUNDARY_VERTICES;
     public static final ModConfigSpec.BooleanValue ALLOW_ZOO_CHUNK_LOADING;
     public static final ModConfigSpec.IntValue MAX_LOADED_CHUNKS_PER_ZOO;
+    public static final ModConfigSpec.IntValue MAX_SHOPS_PER_ZOO;
+    public static final ModConfigSpec.IntValue MAX_CONTAINERS_PER_SHOP;
+    public static final ModConfigSpec.IntValue SHOP_LINK_RADIUS;
+    public static final ModConfigSpec.IntValue DEFAULT_FOOD_PRICE;
+    public static final ModConfigSpec.IntValue DEFAULT_DRINK_PRICE;
+    public static final ModConfigSpec.IntValue DEFAULT_SOUVENIR_PRICE;
 
     static {
         ModConfigSpec.Builder b = new ModConfigSpec.Builder();
@@ -47,6 +53,21 @@ public final class ZooConfig {
                 .defineInRange("maxZooArea", 65_536, 1, 16_777_216);
         MAX_BOUNDARY_VERTICES = b.comment("Most corners a zoo boundary can have.")
                 .defineInRange("maxBoundaryVertices", 64, 3, 1024);
+        b.pop();
+
+        b.push("shops");
+        MAX_SHOPS_PER_ZOO = b.comment("Most shops one zoo can have.")
+                .defineInRange("maxShopsPerZoo", 16, 1, 256);
+        MAX_CONTAINERS_PER_SHOP = b.comment("Most stock containers one shop can link.")
+                .defineInRange("maxContainersPerShop", 4, 1, 32);
+        SHOP_LINK_RADIUS = b.comment("How far, in blocks, a stock container may be from its shop counter.")
+                .defineInRange("shopLinkRadius", 6, 1, 32);
+        DEFAULT_FOOD_PRICE = b.comment("Starting price, in emeralds, for food when it first appears in a shop.")
+                .defineInRange("defaultFoodPrice", 2, 1, 999);
+        DEFAULT_DRINK_PRICE = b.comment("Starting price, in emeralds, for drinks when they first appear in a shop.")
+                .defineInRange("defaultDrinkPrice", 1, 1, 999);
+        DEFAULT_SOUVENIR_PRICE = b.comment("Starting price, in emeralds, for souvenirs when they first appear in a shop.")
+                .defineInRange("defaultSouvenirPrice", 3, 1, 999);
         b.pop();
 
         b.push("chunkLoading");

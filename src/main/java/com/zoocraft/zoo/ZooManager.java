@@ -10,6 +10,16 @@ import com.zoocraft.core.ledger.LedgerResult;
 import com.zoocraft.core.rating.Ratings;
 import com.zoocraft.core.ledger.Transaction;
 import com.zoocraft.core.ledger.TransactionType;
+import com.zoocraft.core.shop.PriceRules;
+import com.zoocraft.core.shop.ProductCategory;
+import com.zoocraft.core.shop.Sale;
+import com.zoocraft.core.shop.SaleRequest;
+import com.zoocraft.core.shop.SaleResult;
+import com.zoocraft.shop.ContainerPositions;
+import com.zoocraft.shop.ProductCatalog;
+import com.zoocraft.shop.ShopStock;
+import net.minecraft.world.item.Item;
+import net.minecraft.world.item.ItemStack;
 import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.resources.ResourceKey;
@@ -258,6 +268,283 @@ public final class ZooManager {
     public void markGateBlocked(Zoo zoo, Gate gate) {
         zoo.markGateBlocked(gate.id(), server.overworld().getGameTime() + GATE_BLOCKED_TICKS);
         fireChanged(zoo);
+    }
+
+    // ---------------------------------------------------------------- shops and toilets
+
+    /** @param counter where customers stand */
+    public ActionResult createShop(ServerPlayer player, ServerLevel level, BlockPos counter) {
+        Optional<Zoo> target = zooAt(level, counter);
+        if (target.isEmpty()) {
+            return ActionResult.fail(Component.translatable("zoocraft.msg.not_in_zoo"));
+        }
+        Zoo zoo = target.get();
+        if (!can(player, zoo, ZooPermission.EDIT)) {
+            return noPermission();
+        }
+        if (zoo.shops().size() >= ZooConfig.MAX_SHOPS_PER_ZOO.get()) {
+            return ActionResult.fail(Component.translatable("zoocraft.msg.shop_limit", ZooConfig.MAX_SHOPS_PER_ZOO.get()));
+        }
+        if (designationNear(zoo, counter)) {
+            return ActionResult.fail(Component.translatable("zoocraft.msg.designation_exists"));
+        }
+        int number = 1;
+        while (shopNamed(zoo, "Shop " + number).isPresent()) {
+            number++;
+        }
+        Shop shop = Shop.create("Shop " + number, counter);
+        zoo.addShop(shop);
+        data.setDirty();
+        fireChanged(zoo);
+        List<Component> notes = new ArrayList<>();
+        if (!Standing.isStandable(level, counter)) {
+            notes.add(Component.translatable("zoocraft.msg.counter_warning"));
+        }
+        return ActionResult.ok(Component.translatable("zoocraft.msg.shop_created", shop.name(), zoo.name()), notes);
+    }
+
+    public ActionResult removeShop(ServerPlayer player, ServerLevel level, BlockPos near) {
+        for (Zoo zoo : zoosNear(level, near, 1)) {
+            Optional<Shop> shop = shopAt(zoo, near);
+            if (shop.isPresent()) {
+                if (!can(player, zoo, ZooPermission.EDIT)) {
+                    return noPermission();
+                }
+                zoo.removeShop(shop.get().id());
+                data.setDirty();
+                fireChanged(zoo);
+                return ActionResult.ok(Component.translatable("zoocraft.msg.shop_removed", shop.get().name()));
+            }
+        }
+        return ActionResult.fail(Component.translatable("zoocraft.msg.no_shop_here"));
+    }
+
+    public ActionResult linkContainer(ServerPlayer player, ServerLevel level, BlockPos pos) {
+        if (!ContainerPositions.hasItemHandler(level, pos)) {
+            return ActionResult.fail(Component.translatable("zoocraft.msg.not_a_container"));
+        }
+        Optional<ShopRef> existing = shopOwningContainer(level, pos);
+        if (existing.isPresent()) {
+            return ActionResult.fail(Component.translatable("zoocraft.msg.container_already_linked", existing.get().shop().name()));
+        }
+        Optional<Zoo> target = zooAt(level, pos);
+        if (target.isEmpty()) {
+            return ActionResult.fail(Component.translatable("zoocraft.msg.not_in_zoo"));
+        }
+        Zoo zoo = target.get();
+        if (!can(player, zoo, ZooPermission.EDIT)) {
+            return noPermission();
+        }
+        int radius = ZooConfig.SHOP_LINK_RADIUS.get();
+        Optional<Shop> nearest = zoo.shops().stream()
+                .filter(s -> s.counter().distSqr(pos) <= (double) radius * radius)
+                .min(java.util.Comparator.comparingDouble(s -> s.counter().distSqr(pos)));
+        if (nearest.isEmpty()) {
+            return ActionResult.fail(Component.translatable("zoocraft.msg.no_counter_near", radius));
+        }
+        Shop shop = nearest.get();
+        if (shop.containers().size() >= ZooConfig.MAX_CONTAINERS_PER_SHOP.get()) {
+            return ActionResult.fail(Component.translatable("zoocraft.msg.container_limit", shop.name(), ZooConfig.MAX_CONTAINERS_PER_SHOP.get()));
+        }
+        shop.addContainer(pos);
+        data.setDirty();
+        fireChanged(zoo);
+        return ActionResult.ok(Component.translatable("zoocraft.msg.container_linked", shop.name(), shop.containers().size()));
+    }
+
+    public ActionResult unlinkContainer(ServerPlayer player, ServerLevel level, BlockPos pos) {
+        Optional<ShopRef> ref = shopOwningContainer(level, pos);
+        if (ref.isEmpty()) {
+            return ActionResult.fail(Component.translatable("zoocraft.msg.not_linked"));
+        }
+        Zoo zoo = ref.get().zoo();
+        Shop shop = ref.get().shop();
+        if (!can(player, zoo, ZooPermission.EDIT)) {
+            return noPermission();
+        }
+        for (BlockPos part : ContainerPositions.parts(level, pos)) {
+            shop.removeContainer(part);
+        }
+        data.setDirty();
+        fireChanged(zoo);
+        return ActionResult.ok(Component.translatable("zoocraft.msg.container_unlinked", shop.name()));
+    }
+
+    /** Used by the facility census when a linked container has gone. */
+    public void unlinkMissing(Zoo zoo, Shop shop, BlockPos pos) {
+        if (shop.removeContainer(pos)) {
+            data.setDirty();
+            fireChanged(zoo);
+        }
+    }
+
+    public ActionResult renameShop(ServerPlayer player, Zoo zoo, UUID shopId, String rawName) {
+        if (!can(player, zoo, ZooPermission.SETTINGS)) {
+            return noPermission();
+        }
+        Optional<Shop> shop = zoo.shop(shopId);
+        if (shop.isEmpty()) {
+            return ActionResult.fail(Component.translatable("zoocraft.msg.no_such_shop"));
+        }
+        String name = rawName.trim();
+        if (name.isEmpty() || name.length() > MAX_NAME_LENGTH) {
+            return ActionResult.fail(Component.translatable("zoocraft.msg.bad_name", MAX_NAME_LENGTH));
+        }
+        Optional<Shop> clash = shopNamed(zoo, name);
+        if (clash.isPresent() && clash.get() != shop.get()) {
+            return ActionResult.fail(Component.translatable("zoocraft.msg.shop_name_taken", name));
+        }
+        shop.get().setName(name);
+        data.setDirty();
+        fireChanged(zoo);
+        return ActionResult.ok(Component.translatable("zoocraft.msg.shop_renamed", name));
+    }
+
+    public ActionResult setShopOpen(ServerPlayer player, Zoo zoo, UUID shopId, boolean open) {
+        if (!can(player, zoo, ZooPermission.SETTINGS)) {
+            return noPermission();
+        }
+        Optional<Shop> shop = zoo.shop(shopId);
+        if (shop.isEmpty()) {
+            return ActionResult.fail(Component.translatable("zoocraft.msg.no_such_shop"));
+        }
+        shop.get().setOpen(open);
+        data.setDirty();
+        fireChanged(zoo);
+        return ActionResult.ok(Component.translatable(open ? "zoocraft.msg.shop_opened" : "zoocraft.msg.shop_closed", shop.get().name()));
+    }
+
+    public ActionResult setItemPrice(ServerPlayer player, Zoo zoo, UUID shopId, String itemId, int price) {
+        if (!can(player, zoo, ZooPermission.SETTINGS)) {
+            return noPermission();
+        }
+        Optional<Shop> shop = zoo.shop(shopId);
+        if (shop.isEmpty()) {
+            return ActionResult.fail(Component.translatable("zoocraft.msg.no_such_shop"));
+        }
+        if (!PriceRules.valid(price)) {
+            return ActionResult.fail(Component.translatable("zoocraft.msg.bad_shop_price", PriceRules.MIN_PRICE, PriceRules.MAX_PRICE));
+        }
+        Optional<Item> item = ProductCatalog.item(itemId);
+        if (item.isEmpty() || ProductCatalog.category(new ItemStack(item.get())) == ProductCategory.UNSELLABLE) {
+            return ActionResult.fail(Component.translatable("zoocraft.msg.not_for_sale"));
+        }
+        shop.get().setPrice(itemId, price);
+        data.setDirty();
+        fireChanged(zoo);
+        return ActionResult.ok(Component.translatable("zoocraft.msg.item_price_set", item.get().getDescription(), price, shop.get().name()));
+    }
+
+    public ActionResult createToilet(ServerPlayer player, ServerLevel level, BlockPos pos) {
+        Optional<Zoo> target = zooAt(level, pos);
+        if (target.isEmpty()) {
+            return ActionResult.fail(Component.translatable("zoocraft.msg.not_in_zoo"));
+        }
+        Zoo zoo = target.get();
+        if (!can(player, zoo, ZooPermission.EDIT)) {
+            return noPermission();
+        }
+        if (designationNear(zoo, pos)) {
+            return ActionResult.fail(Component.translatable("zoocraft.msg.designation_exists"));
+        }
+        zoo.addToilet(new Toilet(UUID.randomUUID(), pos.immutable()));
+        data.setDirty();
+        fireChanged(zoo);
+        List<Component> notes = new ArrayList<>();
+        if (!Standing.isStandable(level, pos)) {
+            notes.add(Component.translatable("zoocraft.msg.toilet_warning"));
+        }
+        return ActionResult.ok(Component.translatable("zoocraft.msg.toilet_created", zoo.name(), zoo.toilets().size()), notes);
+    }
+
+    public ActionResult removeToilet(ServerPlayer player, ServerLevel level, BlockPos near) {
+        for (Zoo zoo : zoosNear(level, near, 1)) {
+            Optional<Toilet> toilet = zoo.toilets().stream().filter(t -> isNear(t.pos(), near)).findFirst();
+            if (toilet.isPresent()) {
+                if (!can(player, zoo, ZooPermission.EDIT)) {
+                    return noPermission();
+                }
+                zoo.removeToilet(toilet.get().id());
+                data.setDirty();
+                fireChanged(zoo);
+                return ActionResult.ok(Component.translatable("zoocraft.msg.toilet_removed", zoo.name()));
+            }
+        }
+        return ActionResult.fail(Component.translatable("zoocraft.msg.no_toilet_here"));
+    }
+
+    /**
+     * Sells one unit of an item (spec section 7.5). The caller deducts the buyer's budget only on
+     * {@link SaleResult#SOLD}. Failures other than a repeated key are recorded as missed sales.
+     */
+    public SaleResult sell(ServerLevel level, Zoo zoo, UUID shopId, String key, String itemId, int budget, String actor) {
+        Optional<Shop> maybeShop = zoo.shop(shopId);
+        if (maybeShop.isEmpty()) {
+            return SaleResult.SHOP_CLOSED;
+        }
+        Shop shop = maybeShop.get();
+        long gameTime = server.overworld().getGameTime();
+        shop.stats().rollDay(gameTime / 24000L);
+        int price = ProductCatalog.priceFor(shop, itemId);
+        boolean usable = shop.open() && !zoo.isDetached(shop.counter());
+        SaleResult result = Sale.attempt(zoo.ledger(), new ShopStock(level, shop),
+                new SaleRequest(key, itemId, price, budget, usable, gameTime, actor));
+        if (result.sold()) {
+            shop.stats().recordSale(itemId, price);
+            if (shop.price(itemId).isEmpty()) {
+                shop.setPrice(itemId, price);
+            }
+            data.setDirty();
+            fireChanged(zoo);
+        } else if (result != SaleResult.DUPLICATE) {
+            recordMissedSale(zoo, shopId, result.name().toLowerCase(Locale.ROOT), itemId);
+        }
+        return result;
+    }
+
+    /** A purchase that didn't happen, for shortage and pricing advice. */
+    public void recordMissedSale(Zoo zoo, UUID shopId, String reason, String itemId) {
+        zoo.shop(shopId).ifPresent(shop -> {
+            shop.stats().rollDay(server.overworld().getGameTime() / 24000L);
+            shop.stats().recordMissed(reason, itemId);
+            data.setDirty();
+        });
+    }
+
+    /** The shop whose stock is in the container at {@code pos}, checking both halves of a double chest. */
+    public Optional<ShopRef> shopOwningContainer(Level level, BlockPos pos) {
+        List<BlockPos> parts = ContainerPositions.parts(level, pos);
+        for (Zoo zoo : zoosNear(level, pos, 1)) {
+            if (!zoo.dimension().equals(level.dimension())) {
+                continue;
+            }
+            for (Shop shop : zoo.shops()) {
+                for (BlockPos linked : shop.containers()) {
+                    if (parts.contains(linked)) {
+                        return Optional.of(new ShopRef(zoo, shop));
+                    }
+                }
+            }
+        }
+        return Optional.empty();
+    }
+
+    /** The shop whose counter is at or right next to the position. */
+    public static Optional<Shop> shopAt(Zoo zoo, BlockPos pos) {
+        return zoo.shops().stream().filter(s -> isNear(s.counter(), pos)).findFirst();
+    }
+
+    private static Optional<Shop> shopNamed(Zoo zoo, String name) {
+        return zoo.shops().stream().filter(s -> s.name().equalsIgnoreCase(name)).findFirst();
+    }
+
+    private static boolean designationNear(Zoo zoo, BlockPos pos) {
+        return gateNear(zoo, pos).isPresent() || shopAt(zoo, pos).isPresent()
+                || zoo.toilets().stream().anyMatch(t -> isNear(t.pos(), pos));
+    }
+
+    private static boolean isNear(BlockPos a, BlockPos b) {
+        return Math.abs(a.getX() - b.getX()) <= 1 && Math.abs(a.getZ() - b.getZ()) <= 1 && Math.abs(a.getY() - b.getY()) <= 2;
     }
 
     // ---------------------------------------------------------------- settings
