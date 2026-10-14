@@ -190,5 +190,7 @@
   "zoocraft.msg.toilet_warning": "Visitors can't stand on this toilet spot. Make sure it is clear ground they can reach.",
   "zoocraft.msg.toilet_created": "Toilet added to %s. It now has %s toilet(s).",
   "zoocraft.msg.toilet_removed": "Toilet removed from %s.",
-  "zoocraft.msg.no_toilet_here": "There's no toilet here."
+  "zoocraft.msg.no_toilet_here": "There's no toilet here.",
+  "zoocraft.alert.container_removed": "A stock container at (%s, %s, %s) was removed, so it is no longer linked to its shop.",
+  "zoocraft.msg.stock_protected": "This is stock for %s. Only the zoo's owner and managers can use it."
 }

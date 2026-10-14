@@ -3,9 +3,7 @@ package com.zoocraft.gametest;
 import com.zoocraft.ZooCraft;
 import com.zoocraft.core.shop.SaleResult;
 import com.zoocraft.zoo.ActionResult;
-import com.zoocraft.zoo.Shop;
-import com.zoocraft.zoo.Zoo;
-import com.zoocraft.zoo.ZooManager;
+import com.zoocraft.gametest.TestShops.Setup;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
 import net.minecraft.gametest.framework.GameTest;
@@ -13,7 +11,6 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.Container;
 import net.minecraft.world.item.Item;
-import net.minecraft.world.item.ItemStack;
 import net.minecraft.world.item.Items;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.level.block.ChestBlock;
@@ -27,44 +24,23 @@ import java.util.UUID;
 @GameTestHolder(ZooCraft.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class SaleGameTests {
-    private static final BlockPos COUNTER = new BlockPos(10, 2, 10);
-    private static final BlockPos CHEST = new BlockPos(11, 2, 10);
-    private static final String BREAD = "minecraft:bread";
-
-    /** A zoo covering most of the floor, with a shop at COUNTER and a chest of 5 bread at CHEST linked to it. */
-    private record Setup(ServerPlayer owner, ZooManager zoos, Zoo zoo, Shop shop) {
-    }
+    private static final BlockPos CHEST = TestShops.CHEST;
+    private static final String BREAD = TestShops.BREAD;
 
     private static Setup setUp(GameTestHelper helper, String name) {
-        ServerPlayer owner = TestZoos.player(helper, "Owner");
-        ZooManager zoos = TestZoos.manager(helper);
-        Zoo zoo = TestZoos.create(helper, owner, name, TestZoos.rectangle(helper, 2, 2, 29, 29));
-        assertOk(helper, zoos.createShop(owner, helper.getLevel(), helper.absolutePos(COUNTER)));
-        placeChest(helper, CHEST, Items.BREAD, 5);
-        assertOk(helper, zoos.linkContainer(owner, helper.getLevel(), helper.absolutePos(CHEST)));
-        return new Setup(owner, zoos, zoo, zoo.shops().getFirst());
+        return TestShops.setUp(helper, name);
     }
 
     private static void placeChest(GameTestHelper helper, BlockPos pos, Item item, int count) {
-        helper.setBlock(pos, Blocks.CHEST);
-        if (count > 0) {
-            ((Container) helper.getBlockEntity(pos)).setItem(0, new ItemStack(item, count));
-        }
+        TestShops.placeChest(helper, pos, item, count);
     }
 
     private static int count(GameTestHelper helper, BlockPos pos, Item item) {
-        Container container = (Container) helper.getBlockEntity(pos);
-        int total = 0;
-        for (int i = 0; i < container.getContainerSize(); i++) {
-            if (container.getItem(i).is(item)) {
-                total += container.getItem(i).getCount();
-            }
-        }
-        return total;
+        return TestShops.count(helper, pos, item);
     }
 
     private static void assertOk(GameTestHelper helper, ActionResult result) {
-        helper.assertTrue(result.success(), "expected success: " + result.message().getString());
+        TestShops.assertOk(helper, result);
     }
 
     private static SaleResult sell(GameTestHelper helper, Setup s, String key, int budget) {

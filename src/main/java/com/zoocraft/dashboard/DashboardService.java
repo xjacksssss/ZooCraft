@@ -182,9 +182,7 @@ public final class DashboardService {
         if (zoo.gates().isEmpty()) {
             alerts.add(Component.translatable("zoocraft.alert.no_gates"));
         }
-        for (String key : ZooAlerts.active(zoo)) {
-            alerts.add(Component.translatable(key));
-        }
+        alerts.addAll(ZooAlerts.messages(zoo, now));
         for (Gate gate : zoo.gates()) {
             GateStatus status = zoo.gateStatus(gate, now);
             if (status != GateStatus.OPEN) {
