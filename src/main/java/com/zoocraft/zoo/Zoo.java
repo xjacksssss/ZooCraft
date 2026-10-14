@@ -41,7 +41,8 @@ public final class Zoo {
             ZooCodecs.LEDGER.fieldOf("ledger").forGetter(Zoo::ledger),
             ZooStats.CODEC.fieldOf("stats").forGetter(Zoo::stats),
             Codec.FLOAT.fieldOf("satisfaction").forGetter(Zoo::satisfaction),
-            Codec.FLOAT.fieldOf("reputation").forGetter(Zoo::reputation)
+            Codec.FLOAT.fieldOf("reputation").forGetter(Zoo::reputation),
+            ZooFacilities.CODEC.optionalFieldOf("facilities", ZooFacilities.empty()).forGetter(z -> z.facilities)
     ).apply(i, Zoo::new));
 
     private final UUID id;
@@ -58,6 +59,7 @@ public final class Zoo {
     private final ZooStats stats;
     private float satisfaction;
     private float reputation;
+    private final ZooFacilities facilities;
 
     // Runtime only, not saved.
     private ZooShape shape;
@@ -65,7 +67,7 @@ public final class Zoo {
 
     private Zoo(UUID id, String name, ResourceKey<Level> dimension, UUID owner, List<UUID> managers,
                 List<BoundaryVertex> boundary, List<Gate> gates, boolean open, int admissionPrice, boolean keepLoaded,
-                Ledger ledger, ZooStats stats, float satisfaction, float reputation) {
+                Ledger ledger, ZooStats stats, float satisfaction, float reputation, ZooFacilities facilities) {
         this.id = id;
         this.name = name;
         this.dimension = dimension;
@@ -80,11 +82,12 @@ public final class Zoo {
         this.stats = stats;
         this.satisfaction = satisfaction;
         this.reputation = reputation;
+        this.facilities = facilities;
     }
 
     static Zoo create(String name, ResourceKey<Level> dimension, UUID owner, List<BoundaryVertex> boundary) {
         return new Zoo(UUID.randomUUID(), name, dimension, owner, List.of(), boundary, List.of(), false, 2, false,
-                new Ledger(), new ZooStats(), 50f, 50f);
+                new Ledger(), new ZooStats(), 50f, 50f, ZooFacilities.empty());
     }
 
     public UUID id() {
@@ -178,7 +181,40 @@ public final class Zoo {
         return reputation;
     }
 
+    public List<Shop> shops() {
+        return facilities.shops();
+    }
+
+    public Optional<Shop> shop(UUID shopId) {
+        return facilities.shops.stream().filter(s -> s.id().equals(shopId)).findFirst();
+    }
+
+    public List<Toilet> toilets() {
+        return facilities.toilets();
+    }
+
+    /** A shop counter or toilet point outside the boundary is detached: kept, but not used by visitors. */
+    public boolean isDetached(BlockPos pos) {
+        return !contains(pos);
+    }
+
     // Mutators, package-private: only ZooManager calls these.
+
+    void addShop(Shop shop) {
+        facilities.shops.add(shop);
+    }
+
+    boolean removeShop(UUID shopId) {
+        return facilities.shops.removeIf(s -> s.id().equals(shopId));
+    }
+
+    void addToilet(Toilet toilet) {
+        facilities.toilets.add(toilet);
+    }
+
+    boolean removeToilet(UUID toiletId) {
+        return facilities.toilets.removeIf(t -> t.id().equals(toiletId));
+    }
 
     void setName(String name) {
         this.name = name;
