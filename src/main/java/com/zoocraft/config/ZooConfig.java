@@ -24,6 +24,14 @@ public final class ZooConfig {
     public static final ModConfigSpec.IntValue DEFAULT_FOOD_PRICE;
     public static final ModConfigSpec.IntValue DEFAULT_DRINK_PRICE;
     public static final ModConfigSpec.IntValue DEFAULT_SOUVENIR_PRICE;
+    public static final ModConfigSpec.IntValue NEED_THRESHOLD;
+    public static final ModConfigSpec.IntValue TOILET_CAPACITY;
+    public static final ModConfigSpec.IntValue BUDGET_CONSCIOUS_MIN;
+    public static final ModConfigSpec.IntValue BUDGET_CONSCIOUS_MAX;
+    public static final ModConfigSpec.IntValue ENTHUSIAST_MIN;
+    public static final ModConfigSpec.IntValue ENTHUSIAST_MAX;
+    public static final ModConfigSpec.IntValue GENERAL_MIN;
+    public static final ModConfigSpec.IntValue GENERAL_MAX;
 
     static {
         ModConfigSpec.Builder b = new ModConfigSpec.Builder();
@@ -70,6 +78,22 @@ public final class ZooConfig {
                 .defineInRange("defaultSouvenirPrice", 3, 1, 999);
         b.pop();
 
+        b.push("needs");
+        NEED_THRESHOLD = b.comment("How hungry, or how badly in need of a toilet, a visitor gets (0-100) before it goes looking.")
+                .defineInRange("needThreshold", 60, 1, 100);
+        TOILET_CAPACITY = b.comment("How many visitors one toilet point serves at once.")
+                .defineInRange("toiletCapacity", 2, 1, 32);
+        b.pop();
+
+        b.push("budgets");
+        BUDGET_CONSCIOUS_MIN = b.comment("Emeralds a budget-conscious visitor brings, at least.").defineInRange("budgetConsciousMin", 4, 0, 10_000);
+        BUDGET_CONSCIOUS_MAX = b.comment("Emeralds a budget-conscious visitor brings, at most.").defineInRange("budgetConsciousMax", 12, 0, 10_000);
+        ENTHUSIAST_MIN = b.comment("Emeralds an animal enthusiast brings, at least.").defineInRange("animalEnthusiastMin", 6, 0, 10_000);
+        ENTHUSIAST_MAX = b.comment("Emeralds an animal enthusiast brings, at most.").defineInRange("animalEnthusiastMax", 18, 0, 10_000);
+        GENERAL_MIN = b.comment("Emeralds a general visitor brings, at least.").defineInRange("generalMin", 5, 0, 10_000);
+        GENERAL_MAX = b.comment("Emeralds a general visitor brings, at most.").defineInRange("generalMax", 15, 0, 10_000);
+        b.pop();
+
         b.push("chunkLoading");
         ALLOW_ZOO_CHUNK_LOADING = b.comment("Whether zoo owners and managers may keep their zoo loaded when nobody is nearby.")
                 .define("allowZooChunkLoading", true);
@@ -81,6 +105,15 @@ public final class ZooConfig {
     }
 
     private ZooConfig() {
+    }
+
+    /** The configured budget range for a profile, as {min, max}. */
+    public static int[] budgetRange(com.zoocraft.core.visitor.VisitorProfile profile) {
+        return switch (profile) {
+            case BUDGET_CONSCIOUS -> new int[]{BUDGET_CONSCIOUS_MIN.get(), BUDGET_CONSCIOUS_MAX.get()};
+            case ANIMAL_ENTHUSIAST -> new int[]{ENTHUSIAST_MIN.get(), ENTHUSIAST_MAX.get()};
+            case GENERAL -> new int[]{GENERAL_MIN.get(), GENERAL_MAX.get()};
+        };
     }
 
     public static BoundaryLimits boundaryLimits() {

@@ -4,9 +4,10 @@ import java.util.random.RandomGenerator;
 
 /** The three Phase 1 visitor profiles (GDD section 4.2). They change decisions, never access. */
 public enum VisitorProfile {
-    BUDGET_CONSCIOUS(3, 10, 3.0, 30),
-    ANIMAL_ENTHUSIAST(5, 16, 6.0, 30),
-    GENERAL(4, 12, 4.0, 40);
+    // Default budgets leave room for shopping (Phase 2 spec section 8.3); servers can change them in the config.
+    BUDGET_CONSCIOUS(4, 12, 3.0, 30),
+    ANIMAL_ENTHUSIAST(6, 18, 6.0, 30),
+    GENERAL(5, 15, 4.0, 40);
 
     private final int minBudget;
     private final int maxBudget;
@@ -29,7 +30,12 @@ public enum VisitorProfile {
     }
 
     public int rollBudget(RandomGenerator random) {
-        return minBudget + random.nextInt(maxBudget - minBudget + 1);
+        return rollBudget(random, minBudget, maxBudget);
+    }
+
+    /** A budget between configured limits; a maximum below the minimum is treated as the minimum. */
+    public int rollBudget(RandomGenerator random, int min, int max) {
+        return min + random.nextInt(Math.max(0, max - min) + 1);
     }
 
     /** A random personal price tolerance, so visitors with the same profile still differ. */

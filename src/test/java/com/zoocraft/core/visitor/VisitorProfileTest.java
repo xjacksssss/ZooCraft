@@ -15,6 +15,8 @@ class VisitorProfileTest {
             for (int i = 0; i < 500; i++) {
                 int budget = profile.rollBudget(random);
                 assertTrue(budget >= profile.minBudget() && budget <= profile.maxBudget(), profile + " rolled " + budget);
+                int configured = profile.rollBudget(random, 7, 9);
+                assertTrue(configured >= 7 && configured <= 9, profile + " rolled " + configured + " outside 7-9");
             }
         }
     }
