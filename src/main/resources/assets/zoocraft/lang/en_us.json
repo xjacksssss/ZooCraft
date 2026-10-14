@@ -237,5 +237,7 @@
   "zoocraft.sale.duplicate": "already sold",
   "zoocraft.sale.cant_afford": "the buyer can't afford it",
   "zoocraft.sale.out_of_stock": "out of stock",
-  "zoocraft.sale.invalid_price": "the price isn't valid"
+  "zoocraft.sale.invalid_price": "the price isn't valid",
+  "zoocraft.msg.shop_detached": "%s is now outside the boundary. It has been kept, but visitors won't use it until the boundary is moved back.",
+  "zoocraft.msg.toilet_detached": "The toilet at (%s, %s, %s) is now outside the boundary. It has been kept, but visitors won't use it until the boundary is moved back."
 }

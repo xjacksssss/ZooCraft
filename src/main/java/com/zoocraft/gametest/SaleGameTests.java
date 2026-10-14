@@ -85,7 +85,12 @@ public final class SaleGameTests {
     @GameTest(template = GameTestTemplates.FLOOR)
     public static void detachedShopRefusesSales(GameTestHelper helper) {
         Setup s = setUp(helper, "Sale Detached");
-        assertOk(helper, s.zoos().editBoundary(s.owner(), s.zoo(), TestZoos.rectangle(helper, 2, 2, 29, 8)));
+        assertOk(helper, s.zoos().createToilet(s.owner(), helper.getLevel(), helper.absolutePos(new BlockPos(20, 2, 20))));
+        ActionResult edit = s.zoos().editBoundary(s.owner(), s.zoo(), TestZoos.rectangle(helper, 2, 2, 29, 8));
+        assertOk(helper, edit);
+        String notes = String.join(" / ", edit.notes().stream().map(n -> n.getString()).toList());
+        helper.assertTrue(notes.contains(s.shop().name()), "the detached shop should be reported: " + notes);
+        helper.assertTrue(notes.contains("toilet"), "the detached toilet should be reported: " + notes);
         helper.assertTrue(sell(helper, s, "sale:d", 10) == SaleResult.SHOP_CLOSED, "detached shop sold");
         helper.assertTrue(count(helper, CHEST, Items.BREAD) == 5, "detached shop took stock");
         TestZoos.cleanUp(helper, s.owner(), s.zoo());

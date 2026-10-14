@@ -140,12 +140,24 @@ public final class ZooManager {
         }
         long gameTime = server.overworld().getGameTime();
         List<Gate> wasAttached = zoo.gates().stream().filter(g -> zoo.gateStatus(g, gameTime) != GateStatus.DETACHED).toList();
+        List<Shop> shopsInside = zoo.shops().stream().filter(s -> !zoo.isDetached(s.counter())).toList();
+        List<Toilet> toiletsInside = zoo.toilets().stream().filter(t -> !zoo.isDetached(t.pos())).toList();
         zoo.setBoundary(normaliseBoundary(boundary));
         data.reindex(zoo);
         List<Component> notes = new ArrayList<>();
         for (Gate gate : wasAttached) {
             if (zoo.gateStatus(gate, gameTime) == GateStatus.DETACHED) {
                 notes.add(Component.translatable("zoocraft.msg.gate_detached", gate.pos().getX(), gate.pos().getY(), gate.pos().getZ()));
+            }
+        }
+        for (Shop shop : shopsInside) {
+            if (zoo.isDetached(shop.counter())) {
+                notes.add(Component.translatable("zoocraft.msg.shop_detached", shop.name()));
+            }
+        }
+        for (Toilet toilet : toiletsInside) {
+            if (zoo.isDetached(toilet.pos())) {
+                notes.add(Component.translatable("zoocraft.msg.toilet_detached", toilet.pos().getX(), toilet.pos().getY(), toilet.pos().getZ()));
             }
         }
         BOUNDARY_LISTENERS.forEach(l -> l.accept(zoo));
