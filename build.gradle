@@ -83,6 +83,10 @@ neoForge {
             client()
             gameDirectory = project.file('run-atm10')
             jvmArguments.addAll '-Xmx10G'
+            // -PquickPlay=<world> opens that save from run-atm10/saves straight away.
+            if (project.hasProperty('quickPlay')) {
+                programArguments.addAll '--quickPlaySingleplayer', project.property('quickPlay').toString()
+            }
         }
 
         data {

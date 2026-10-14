@@ -16,7 +16,13 @@ Requires JDK 21 (Temurin 21 is installed; the system `JAVA_HOME` is JDK 17, whic
 - `./gradlew test --tests "com.zoocraft.core.geometry.*"` runs a subset of JUnit tests. JUnit covers pure logic under `com.zoocraft.core` (no Minecraft classes).
 - `./gradlew runGameTestServer` runs all NeoForge GameTests (in-world tests in `com.zoocraft.gametest`) and exits; non-zero exit means failures. Floor templates come from `tools/make_test_structure.py`.
 - `./gradlew runClient` / `runClient2` (second player named "Manager", separate game directory) / `runServer` for manual and two-player testing.
-- ATM10 check: `powershell -File tools/sync-atm10-mods.ps1` then `./gradlew runAtm10Client -Patm10`. The `-Patm10` flag is required (see docs/compatibility.md).
+- `./gradlew runServer` (game dir `run-server`, RCON on 25575, password `zoocraft-dev`) plus `./gradlew runClient -PjoinServer` joins it automatically; `python tools/rcon.py "<command>" ...` scripts the server, `tools/screenshot.ps1` captures the client window.
+- ATM10 check: `powershell -File tools/sync-atm10-mods.ps1` then `./gradlew runAtm10Client -Patm10` (`-PquickPlay=<save>` opens a world from `run-atm10/saves`). The `-Patm10` flag is required (see docs/compatibility.md).
+- `tools/gametest.sh` runs the GameTests and prints just the summary and failures.
+
+## Code map
+
+Phase 1 (M0 to M4) is built. Pure, unit-tested logic lives in `com.zoocraft.core` (geometry via JTS, ledger, ratings, visitor profiles, recognition rules, exhibit grouping and choice). Minecraft-side packages: `zoo` (Zoo record, `ZooManager` is the only way to change zoos, saved data, permissions, emeralds, alerts), `item` (boundary and designation tools, drafts, outline sync), `visitor` (entity, `VisitorController` state machine, SmartBrainLib movement, node evaluator for the boundary rule and path preference, spawner, tracker), `animal` (recognition, census, exhibits, viewing), `dashboard` and `network` (server-built snapshots, actions), `client` (screens, renderers, keybind), `command` (`/zoo`, `/zoo debug`), `chunk` (optional chunk loading). Manual play-test checklists are in `docs/playtests/`.
 
 The GDD is the source of truth for gameplay. Section 12 ("Locked design decisions") lists decisions that should not be reopened unless testing shows a real problem. The Phase 1 spec turns GDD section 14 into rules, edge cases and acceptance tests, fixes the architecture and libraries (NeoForge 21.1.251, SmartBrainLib, JTS, built-in NeoForge systems), and splits the work into milestones M0 to M4, each with its own implementation plan in `docs/superpowers/plans/`.
 
