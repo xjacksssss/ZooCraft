@@ -151,7 +151,8 @@ final class VisitorExploration {
         }
         AnimalCensus.cached(zoo).exhibit(visitor.currentExhibit).ifPresent(exhibit -> {
             exhibit.markReached(now);
-            if (visitor.seenSpecies().containsAll(exhibit.species())) {
+            // Only coming back to an exhibit already visited counts as seeing the same animals again.
+            if (!visitor.exhibitsArrived.add(exhibit.id())) {
                 visitor.repeatVisits++;
                 if (visitor.repeatVisits >= REPEATS_BEFORE_COMPLAINT) {
                     visitor.remarkOnce(CommentType.SAME_ANIMALS);

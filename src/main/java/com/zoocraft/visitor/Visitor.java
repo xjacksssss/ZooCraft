@@ -93,6 +93,7 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
     @Nullable UUID currentExhibit;
     final java.util.Deque<UUID> recentExhibits = new java.util.ArrayDeque<>();
     final Set<UUID> exhibitsViewed = new HashSet<>();
+    final Set<UUID> exhibitsArrived = new HashSet<>();
     int repeatVisits;
     final java.util.EnumSet<CommentType> saidOnce = java.util.EnumSet.noneOf(CommentType.class);
 

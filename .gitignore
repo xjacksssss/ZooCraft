@@ -9,3 +9,5 @@ out/
 bin/
 run-*/
 run-atm10-gradle.log
+run-server/
+run-client2/

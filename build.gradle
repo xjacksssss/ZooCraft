@@ -49,17 +49,25 @@ neoForge {
         client {
             client()
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
+            // -PjoinServer joins a local runServer straight away (used by tools/visual-check.py).
+            if (project.hasProperty('joinServer')) {
+                programArguments.addAll '--quickPlayMultiplayer', 'localhost:25565'
+            }
         }
 
         client2 {
             client()
             gameDirectory = project.file('run-client2')
             programArguments.addAll '--username', 'Manager'
+            if (project.hasProperty('joinServer')) {
+                programArguments.addAll '--quickPlayMultiplayer', 'localhost:25565'
+            }
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
 
         server {
             server()
+            gameDirectory = project.file('run-server')
             programArgument '--nogui'
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }

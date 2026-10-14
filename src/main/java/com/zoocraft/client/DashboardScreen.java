@@ -232,6 +232,8 @@ public class DashboardScreen extends Screen {
         y += LINE + 4;
         bar(g, x, y, Component.translatable("zoocraft.screen.dashboard.satisfaction"), s.satisfaction());
         bar(g, x, y + LINE + 2, Component.translatable("zoocraft.screen.dashboard.reputation"), s.reputation());
+        long openGates = s.gates().stream().filter(gate -> gate.status() == GateStatus.OPEN.ordinal()).count();
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.gates", s.gates().size(), openGates), x, y + 2 * LINE + 10, MUTED);
 
         int rx = left + PANEL_WIDTH / 2 + 6;
         int width = PANEL_WIDTH / 2 - 16;
@@ -314,19 +316,11 @@ public class DashboardScreen extends Screen {
         } else {
             g.drawString(font, Component.translatable("zoocraft.screen.dashboard.owner_only"), x, y + 43, MUTED);
         }
-        int gy = top + PANEL_HEIGHT - 26;
-        long open = s.gates().stream().filter(gate -> gate.status() == GateStatus.OPEN.ordinal()).count();
-        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.gates", s.gates().size(), open), x, gy, MUTED);
-        StringBuilder positions = new StringBuilder();
-        for (DashboardSnapshot.GateLine gate : s.gates().stream().limit(4).toList()) {
-            positions.append("(").append(gate.pos().getX()).append(", ").append(gate.pos().getZ()).append(") ");
-        }
-        g.drawString(font, positions.toString(), x, gy + LINE, MUTED);
     }
 
     private void bar(GuiGraphics g, int x, int y, Component label, float value) {
         g.drawString(font, label, x, y, TEXT);
-        int bx = x + 80, width = 80;
+        int bx = x + 76, width = 56;
         g.fill(bx, y, bx + width, y + 8, 0xFF303030);
         int colour = value >= 60 ? 0xFF4CAF50 : value >= 35 ? 0xFFE0B040 : 0xFFE05040;
         g.fill(bx, y, bx + Math.round(width * Math.max(0, Math.min(100, value)) / 100f), y + 8, colour);
