@@ -49,8 +49,6 @@
   "item.zoocraft.boundary_tool.tip2": "Sneak and use to undo the last corner.",
   "item.zoocraft.boundary_tool.tip3": "Use inside a zoo you manage to edit its boundary.",
   "item.zoocraft.designation_tool": "Zoo Designation Tool",
-  "item.zoocraft.designation_tool.tip1": "Use on the ground near a zoo boundary to place a gate.",
-  "item.zoocraft.designation_tool.tip2": "Sneak and use on a gate to remove it.",
   "zoocraft.tool.no_target": "Nothing in range. Aim at a block.",
   "zoocraft.tool.belongs_to": "This land is part of %s.",
   "zoocraft.tool.editing": "Editing the boundary of %s. Click a corner to move it, sneak-click an edge to add a corner, sneak-click a corner to remove it.",
@@ -192,5 +190,17 @@
   "zoocraft.msg.toilet_removed": "Toilet removed from %s.",
   "zoocraft.msg.no_toilet_here": "There's no toilet here.",
   "zoocraft.alert.container_removed": "A stock container at (%s, %s, %s) was removed, so it is no longer linked to its shop.",
-  "zoocraft.msg.stock_protected": "This is stock for %s. Only the zoo's owner and managers can use it."
+  "zoocraft.msg.stock_protected": "This is stock for %s. Only the zoo's owner and managers can use it.",
+  "item.zoocraft.designation_tool.with_mode": "%s (%s)",
+  "item.zoocraft.designation_tool.gate.tip1": "Use on the ground near a zoo boundary to place a gate.",
+  "item.zoocraft.designation_tool.gate.tip2": "Sneak and use on a gate to remove it.",
+  "item.zoocraft.designation_tool.shop.tip1": "Use on the ground inside a zoo to place a shop counter, then on chests or barrels nearby to stock it.",
+  "item.zoocraft.designation_tool.shop.tip2": "Sneak and use on a container to unlink it, or on a counter to remove the shop.",
+  "item.zoocraft.designation_tool.toilet.tip1": "Use on the ground inside a zoo to place a toilet where visitors will stand.",
+  "item.zoocraft.designation_tool.toilet.tip2": "Sneak and use on a toilet to remove it.",
+  "item.zoocraft.designation_tool.mode_tip": "Sneak and scroll, or sneak and use on the air, to change mode.",
+  "zoocraft.tool.mode": "Designation Tool: %s",
+  "zoocraft.mode.gate": "Gate",
+  "zoocraft.mode.shop": "Shop",
+  "zoocraft.mode.toilet": "Toilet"
 }

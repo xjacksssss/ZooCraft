@@ -3,6 +3,9 @@ package com.zoocraft.network;
 import com.zoocraft.client.ClientPayloadHandlers;
 import com.zoocraft.dashboard.DashboardService;
 import com.zoocraft.item.BoundaryDrafts;
+import com.zoocraft.item.DesignationToolItem;
+import com.zoocraft.registry.ZooItems;
+import net.minecraft.world.item.ItemStack;
 import com.zoocraft.zoo.ActionResult;
 import net.minecraft.ChatFormatting;
 import net.minecraft.server.level.ServerPlayer;
@@ -43,6 +46,13 @@ public final class ZooNetwork {
 
         registrar.playToServer(CreateZooPayload.TYPE, CreateZooPayload.STREAM_CODEC,
                 (payload, context) -> BoundaryDrafts.finishCreate((ServerPlayer) context.player(), payload.name()));
+        registrar.playToServer(ToolModePayload.TYPE, ToolModePayload.STREAM_CODEC, (payload, context) -> {
+            ServerPlayer player = (ServerPlayer) context.player();
+            ItemStack held = player.getMainHandItem();
+            if (held.is(ZooItems.DESIGNATION_TOOL.get())) {
+                DesignationToolItem.cycleMode(player, held, Integer.signum(payload.direction()));
+            }
+        });
         registrar.playToServer(DashboardPayloads.OpenRequest.TYPE, DashboardPayloads.OpenRequest.STREAM_CODEC,
                 (payload, context) -> DashboardService.open((ServerPlayer) context.player(), payload.zooId()));
         registrar.playToServer(DashboardPayloads.Close.TYPE, DashboardPayloads.Close.STREAM_CODEC,
