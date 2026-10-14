@@ -239,5 +239,19 @@
   "zoocraft.sale.out_of_stock": "out of stock",
   "zoocraft.sale.invalid_price": "the price isn't valid",
   "zoocraft.msg.shop_detached": "%s is now outside the boundary. It has been kept, but visitors won't use it until the boundary is moved back.",
-  "zoocraft.msg.toilet_detached": "The toilet at (%s, %s, %s) is now outside the boundary. It has been kept, but visitors won't use it until the boundary is moved back."
+  "zoocraft.msg.toilet_detached": "The toilet at (%s, %s, %s) is now outside the boundary. It has been kept, but visitors won't use it until the boundary is moved back.",
+  "zoocraft.comment.hungry_no_food": "There's nowhere to get something to eat.",
+  "zoocraft.comment.no_toilet": "I couldn't find a toilet.",
+  "zoocraft.comment.need_toilet": "I really need a toilet!",
+  "zoocraft.comment.starving": "I'm starving!",
+  "zoocraft.comment.toilet_queue": "The queue for the toilet is too long.",
+  "zoocraft.comment.cant_reach_toilet": "We couldn't get to the toilets.",
+  "zoocraft.comment.cant_reach_shop": "We couldn't get to the shop.",
+  "zoocraft.comment.sold_out": "They've sold out!",
+  "zoocraft.comment.shop_too_expensive": "That's far too expensive.",
+  "zoocraft.comment.cant_afford": "I can't afford anything here.",
+  "zoocraft.comment.tasty": "That was delicious!",
+  "zoocraft.comment.souvenir": "I'll take this home as a souvenir!",
+  "zoocraft.visitor.needs": "Hunger %s/100, toilet %s/100.",
+  "zoocraft.debug.needs": "Set %s visitor(s) to hunger %s and toilet %s."
 }

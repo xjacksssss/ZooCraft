@@ -1,5 +1,6 @@
 package com.zoocraft.command;
 
+import com.mojang.brigadier.arguments.IntegerArgumentType;
 import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
@@ -42,6 +43,11 @@ final class ZooDebugCommands {
                         .then(Commands.argument("zoo", StringArgumentType.string()).suggests(ZooCommands.ZOO_NAMES).executes(c -> spawn(c, ZooCommands.namedZoo(c)))))
                 .then(Commands.literal("census").executes(c -> census(c, ZooCommands.implicitZoo(c)))
                         .then(Commands.argument("zoo", StringArgumentType.string()).suggests(ZooCommands.ZOO_NAMES).executes(c -> census(c, ZooCommands.namedZoo(c)))))
+                .then(Commands.literal("needs").then(Commands.argument("hunger", IntegerArgumentType.integer(0, 100))
+                        .then(Commands.argument("toilet", IntegerArgumentType.integer(0, 100))
+                                .executes(c -> needs(c, ZooCommands.implicitZoo(c)))
+                                .then(Commands.argument("zoo", StringArgumentType.string()).suggests(ZooCommands.ZOO_NAMES)
+                                        .executes(c -> needs(c, ZooCommands.namedZoo(c)))))))
                 .then(Commands.literal("visitors").executes(c -> visitors(c, ZooCommands.implicitZoo(c)))
                         .then(Commands.argument("zoo", StringArgumentType.string()).suggests(ZooCommands.ZOO_NAMES).executes(c -> visitors(c, ZooCommands.namedZoo(c)))));
     }
@@ -91,13 +97,25 @@ final class ZooDebugCommands {
         return census.animals().size();
     }
 
+    /** Sets every visitor in the zoo to the given hunger and toilet need, to watch errands without waiting. */
+    private static int needs(CommandContext<CommandSourceStack> c, Zoo zoo) {
+        int hunger = IntegerArgumentType.getInteger(c, "hunger");
+        int toilet = IntegerArgumentType.getInteger(c, "toilet");
+        List<Visitor> visitors = VisitorTracker.visitors(zoo.id());
+        visitors.forEach(v -> v.testSetNeeds(hunger, toilet));
+        c.getSource().sendSuccess(() -> Component.translatable("zoocraft.debug.needs", visitors.size(), hunger, toilet), false);
+        return visitors.size();
+    }
+
     private static int visitors(CommandContext<CommandSourceStack> c, Zoo zoo) {
         List<Visitor> visitors = VisitorTracker.visitors(zoo.id());
         c.getSource().sendSuccess(() -> Component.translatable("zoocraft.debug.visitors", visitors.size(), zoo.name()), false);
         for (Visitor v : visitors) {
             c.getSource().sendSuccess(() -> Component.literal(" - " + v.profile() + " " + v.phase() + " budget " + v.budget()
                     + " mood " + Math.round(v.satisfaction()) + " interest " + Math.round(v.interest())
-                    + " species " + v.seenSpecies().size() + " at " + v.blockPosition().toShortString()), false);
+                    + " species " + v.seenSpecies().size() + " hunger " + Math.round(v.needs().hunger())
+                    + " toilet " + Math.round(v.needs().toilet()) + " spent " + v.spentInShops()
+                    + " at " + v.blockPosition().toShortString()), false);
         }
         return visitors.size();
     }

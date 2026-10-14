@@ -1,5 +1,8 @@
 package com.zoocraft.visitor;
 
+import com.zoocraft.config.ZooConfig;
+import com.zoocraft.core.needs.Need;
+import com.zoocraft.core.needs.Needs;
 import com.zoocraft.core.visitor.VisitorProfile;
 import com.zoocraft.feedback.CommentType;
 import com.zoocraft.zoo.Gate;
@@ -22,6 +25,7 @@ import net.minecraft.world.InteractionResult;
 import net.minecraft.world.damagesource.DamageSource;
 import net.minecraft.world.entity.Entity;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.EquipmentSlot;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.PathfinderMob;
 import net.minecraft.world.entity.ai.Brain;
@@ -80,6 +84,13 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
     long visitStartTime;
     long lastSavedTime = -1;
     final Set<String> seenSpecies = new HashSet<>();
+    Needs needs = Needs.roll(new java.util.Random());
+    /** Next purchase's index; sale keys are {@code sale:<visitId>:<saleIndex>}, so this must survive saving. */
+    int saleIndex;
+    /** Compared against the souvenir chance when the visit ends, so the decision is fixed per visitor. */
+    double souvenirRoll = Math.random();
+    boolean lastStopDone;
+    int spentInShops;
 
     // Runtime only.
     final VisitorController controller = new VisitorController(this);
@@ -101,6 +112,8 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
         super(type, level);
         setCanPickUpLoot(false);
         setPersistenceRequired();
+        // Purchases are eaten or taken home, never dropped (Phase 2 spec section 8.3).
+        setDropChance(EquipmentSlot.MAINHAND, 0f);
     }
 
     public static AttributeSupplier.Builder createAttributes() {
@@ -118,8 +131,11 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
         this.leader = leader;
         java.util.Random random = new java.util.Random(getRandom().nextLong());
         this.profile = VisitorProfile.roll(random);
-        this.budget = profile.rollBudget(random);
+        int[] budgetRange = ZooConfig.budgetRange(profile);
+        this.budget = profile.rollBudget(random, budgetRange[0], budgetRange[1]);
         this.personalFactor = VisitorProfile.rollPersonalFactor(random);
+        this.needs = Needs.roll(random);
+        this.souvenirRoll = random.nextDouble();
         this.visitStartTime = level().getGameTime();
         this.phase = VisitorPhase.ARRIVING;
         if (level() instanceof ServerLevel serverLevel) {
@@ -234,6 +250,26 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
         return pathRules;
     }
 
+    public Needs needs() {
+        return needs;
+    }
+
+    public int saleIndex() {
+        return saleIndex;
+    }
+
+    public double souvenirRoll() {
+        return souvenirRoll;
+    }
+
+    public boolean lastStopDone() {
+        return lastStopDone;
+    }
+
+    public int spentInShops() {
+        return spentInShops;
+    }
+
     public VisitorController controller() {
         return controller;
     }
@@ -322,6 +358,25 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
         this.personalFactor = personalFactor;
     }
 
+    public void testSetNeeds(double hunger, double toilet) {
+        needs.set(Need.HUNGER, hunger);
+        needs.set(Need.TOILET, toilet);
+    }
+
+    public void testSetSouvenirRoll(double roll) {
+        this.souvenirRoll = roll;
+    }
+
+    public void testSetShopping(int saleIndex, boolean lastStopDone, int spentInShops) {
+        this.saleIndex = saleIndex;
+        this.lastStopDone = lastStopDone;
+        this.spentInShops = spentInShops;
+    }
+
+    public void testSetInterest(double interest) {
+        this.interest = interest;
+    }
+
     public void testSetPhase(VisitorPhase phase) {
         if (phase == VisitorPhase.EXPLORING || phase == VisitorPhase.LEAVING) {
             admitted = true;
@@ -380,6 +435,8 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
                     Component.translatable("zoocraft.profile." + profile.name().toLowerCase(java.util.Locale.ROOT)),
                     budget, Math.round(satisfaction), Component.translatable("zoocraft.phase." + phase.name().toLowerCase(java.util.Locale.ROOT)))
                     .withStyle(ChatFormatting.GRAY));
+            player.sendSystemMessage(Component.translatable("zoocraft.visitor.needs", Math.round(needs.hunger()), Math.round(needs.toilet()))
+                    .withStyle(ChatFormatting.GRAY));
         }
         return InteractionResult.sidedSuccess(level().isClientSide);
     }
@@ -407,6 +464,18 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
         ListTag species = new ListTag();
         seenSpecies.forEach(s -> species.add(StringTag.valueOf(s)));
         visit.put("seenSpecies", species);
+        CompoundTag needsTag = new CompoundTag();
+        needsTag.putDouble("hunger", needs.hunger());
+        needsTag.putDouble("toilet", needs.toilet());
+        needsTag.putDouble("hungerRate", needs.hungerRate());
+        needsTag.putDouble("toiletRate", needs.toiletRate());
+        needsTag.putDouble("hungerFull", needs.hungerFullSeconds());
+        needsTag.putDouble("toiletFull", needs.toiletFullSeconds());
+        visit.put("needs", needsTag);
+        visit.putInt("saleIndex", saleIndex);
+        visit.putDouble("souvenirRoll", souvenirRoll);
+        visit.putBoolean("lastStopDone", lastStopDone);
+        visit.putInt("spentInShops", spentInShops);
         tag.put("ZooVisit", visit);
         VillagerData.CODEC.encodeStart(net.minecraft.nbt.NbtOps.INSTANCE, getVillagerData()).result().ifPresent(t -> tag.put("VillagerData", t));
     }
@@ -439,6 +508,18 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
         lastSavedTime = visit.contains("lastSavedTime") ? visit.getLong("lastSavedTime") : -1;
         seenSpecies.clear();
         visit.getList("seenSpecies", Tag.TAG_STRING).forEach(t -> seenSpecies.add(t.getAsString()));
+        // Visitors saved before Phase 2 have no needs or shopping state: roll fresh needs and start shopping from zero.
+        if (visit.contains("needs")) {
+            CompoundTag n = visit.getCompound("needs");
+            needs = new Needs(n.getDouble("hunger"), n.getDouble("toilet"), n.getDouble("hungerRate"), n.getDouble("toiletRate"),
+                    n.getDouble("hungerFull"), n.getDouble("toiletFull"));
+        } else {
+            needs = Needs.roll(new java.util.Random(getRandom().nextLong()));
+        }
+        saleIndex = visit.getInt("saleIndex");
+        souvenirRoll = visit.contains("souvenirRoll") ? visit.getDouble("souvenirRoll") : getRandom().nextDouble();
+        lastStopDone = visit.getBoolean("lastStopDone");
+        spentInShops = visit.getInt("spentInShops");
         if (tag.contains("VillagerData")) {
             VillagerData.CODEC.parse(net.minecraft.nbt.NbtOps.INSTANCE, tag.get("VillagerData")).result().ifPresent(this::setVillagerData);
         }
