@@ -1,10 +1,12 @@
 package com.zoocraft;
 
 import com.mojang.logging.LogUtils;
+import com.zoocraft.config.ZooConfig;
 import net.minecraft.resources.ResourceLocation;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.fml.ModContainer;
 import net.neoforged.fml.common.Mod;
+import net.neoforged.fml.config.ModConfig;
 import org.slf4j.Logger;
 
 @Mod(ZooCraft.MOD_ID)
@@ -13,7 +15,7 @@ public final class ZooCraft {
     public static final Logger LOGGER = LogUtils.getLogger();
 
     public ZooCraft(IEventBus modBus, ModContainer container) {
-        LOGGER.info("ZooCraft loading");
+        container.registerConfig(ModConfig.Type.SERVER, ZooConfig.SPEC);
     }
 
     public static ResourceLocation id(String path) {

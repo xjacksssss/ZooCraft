@@ -110,6 +110,8 @@ dependencies {
             prefer jts_version
         }
     }
+    // Non-mod libraries must also be put on the dev game's runtime classpath explicitly.
+    additionalRuntimeClasspath "org.locationtech.jts:jts-core:${jts_version}"
 
     testImplementation platform("org.junit:junit-bom:${junit_version}")
     testImplementation 'org.junit.jupiter:junit-jupiter'
