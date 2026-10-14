@@ -33,7 +33,12 @@ base {
 java.toolchain.languageVersion = JavaLanguageVersion.of(21)
 
 neoForge {
-    version = project.neo_version
+    // -Patm10 uses the original (non-recompiled) Minecraft jar so that other mods' mixins
+    // targeting synthetic lambda names apply exactly as in production.
+    enable {
+        version = project.neo_version
+        disableRecompilation = project.hasProperty('atm10')
+    }
 
     parchment {
         mappingsVersion = project.parchment_mappings_version

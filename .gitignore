@@ -8,3 +8,4 @@ out/
 .vscode/
 bin/
 run-*/
+run-atm10-gradle.log

@@ -6,7 +6,17 @@ This file provides guidance to Claude Code (claude.ai/code) when working with co
 
 ZooCraft is a Minecraft **1.21.1 / NeoForge** zoo-building and management mod, built as a standalone mod that must also run in the **All the Mods 10 (ATM10)** (NeoForge) modpack.
 
-The project lives at `C:\dev\ZooCraft` (deliberately outside OneDrive) and is a git repository. It currently contains the design document, [zoocraft_game_design_document_v1.0.md](zoocraft_game_design_document_v1.0.md), and the Phase 1 prototype spec, [docs/superpowers/specs/2026-10-14-phase1-prototype-design.md](docs/superpowers/specs/2026-10-14-phase1-prototype-design.md). There is no source code or build system yet. When the mod project is scaffolded (milestone M0), add the real build, run, and test commands here. Do not assume any.
+The project lives at `C:\dev\ZooCraft` (deliberately outside OneDrive) and is a git repository. Key documents: the design document, [zoocraft_game_design_document_v1.0.md](zoocraft_game_design_document_v1.0.md); the Phase 1 prototype spec, [docs/superpowers/specs/2026-10-14-phase1-prototype-design.md](docs/superpowers/specs/2026-10-14-phase1-prototype-design.md); milestone plans in `docs/superpowers/plans/`; [docs/compatibility.md](docs/compatibility.md).
+
+## Build, run and test
+
+Requires JDK 21 (Temurin 21 is installed; the system `JAVA_HOME` is JDK 17, which is fine for running Gradle because the toolchain picks JDK 21). Use the Gradle wrapper:
+
+- `./gradlew build` compiles, runs JUnit tests and produces `build/libs/zoocraft-<version>.jar` (JTS is bundled via jar-in-jar; SmartBrainLib is a required, unbundled dependency).
+- `./gradlew test --tests "com.zoocraft.core.geometry.*"` runs a subset of JUnit tests. JUnit covers pure logic under `com.zoocraft.core` (no Minecraft classes).
+- `./gradlew runGameTestServer` runs all NeoForge GameTests (in-world tests in `com.zoocraft.gametest`) and exits; non-zero exit means failures. Floor templates come from `tools/make_test_structure.py`.
+- `./gradlew runClient` / `runClient2` (second player named "Manager", separate game directory) / `runServer` for manual and two-player testing.
+- ATM10 check: `powershell -File tools/sync-atm10-mods.ps1` then `./gradlew runAtm10Client -Patm10`. The `-Patm10` flag is required (see docs/compatibility.md).
 
 The GDD is the source of truth for gameplay. Section 12 ("Locked design decisions") lists decisions that should not be reopened unless testing shows a real problem. The Phase 1 spec turns GDD section 14 into rules, edge cases and acceptance tests, fixes the architecture and libraries (NeoForge 21.1.251, SmartBrainLib, JTS, built-in NeoForge systems), and splits the work into milestones M0 to M4, each with its own implementation plan in `docs/superpowers/plans/`.
 
