@@ -44,12 +44,9 @@ import net.minecraft.world.level.Level;
 import net.tslat.smartbrainlib.api.SmartBrainOwner;
 import net.tslat.smartbrainlib.api.core.BrainActivityGroup;
 import net.tslat.smartbrainlib.api.core.SmartBrainProvider;
-import net.tslat.smartbrainlib.api.core.behaviour.FirstApplicableBehaviour;
 import net.tslat.smartbrainlib.api.core.behaviour.custom.look.LookAtTarget;
 import net.tslat.smartbrainlib.api.core.behaviour.custom.move.FloatToSurfaceOfFluid;
 import net.tslat.smartbrainlib.api.core.behaviour.custom.move.MoveToWalkTarget;
-import net.tslat.smartbrainlib.api.core.behaviour.custom.target.SetPlayerLookTarget;
-import net.tslat.smartbrainlib.api.core.behaviour.custom.target.SetRandomLookTarget;
 import net.tslat.smartbrainlib.api.core.sensor.ExtendedSensor;
 import net.tslat.smartbrainlib.api.core.sensor.vanilla.NearbyLivingEntitySensor;
 import net.tslat.smartbrainlib.api.core.sensor.vanilla.NearbyPlayersSensor;
@@ -118,6 +115,8 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
     /** The viewing spot this visitor holds a place at, and its exhibit (Phase 3 spec section 7.2). */
     @Nullable BlockPos claimedSpot;
     @Nullable com.zoocraft.animal.Exhibit spotExhibit;
+    /** Game time from which this visitor may glance at a player again (Phase 3 spec section 7.6). */
+    long playerLookAllowedAt;
     /** When the visitor started waiting at a full exhibit, or 0. */
     long crowdWaitSince;
     final java.util.Deque<UUID> recentExhibits = new java.util.ArrayDeque<>();
@@ -194,10 +193,7 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
 
     @Override
     public BrainActivityGroup<? extends Visitor> getIdleTasks() {
-        return BrainActivityGroup.idleTasks(
-                new FirstApplicableBehaviour<Visitor>(
-                        new SetPlayerLookTarget<>(),
-                        new SetRandomLookTarget<>()));
+        return BrainActivityGroup.idleTasks(new ChooseLookTarget());
     }
 
     @Override
@@ -528,6 +524,10 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
     @Override
     protected InteractionResult mobInteract(Player player, InteractionHand hand) {
         if (!level().isClientSide && hand == InteractionHand.MAIN_HAND) {
+            // Being spoken to earns a proper look, outside the usual glance limit.
+            net.tslat.smartbrainlib.util.BrainUtils.setForgettableMemory(this, net.minecraft.world.entity.ai.memory.MemoryModuleType.LOOK_TARGET,
+                    new net.minecraft.world.entity.ai.behavior.EntityTracker(player, true),
+                    com.zoocraft.core.visitor.LookChoice.INTERACT_LOOK_TICKS);
             player.sendSystemMessage(Component.translatable("zoocraft.visitor.info",
                     Component.translatable("zoocraft.profile." + profile.name().toLowerCase(java.util.Locale.ROOT)),
                     budget, Math.round(satisfaction), Component.translatable("zoocraft.phase." + phase.name().toLowerCase(java.util.Locale.ROOT)))

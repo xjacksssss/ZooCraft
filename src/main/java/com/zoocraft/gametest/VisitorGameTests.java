@@ -228,4 +228,41 @@ public final class VisitorGameTests {
             TestZoos.cleanUp(helper, owner, zoo);
         });
     }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1600)
+    public static void lingeringVisitorsLookAtAnimalsAndOnlyGlanceAtPlayers(GameTestHelper helper) {
+        Setup setup = openZoo(helper, 0);
+        helper.spawnWithNoFreeWill(net.minecraft.world.entity.EntityType.PIG, new BlockPos(30, 2, 30));
+        helper.spawnWithNoFreeWill(net.minecraft.world.entity.EntityType.PIG, new BlockPos(31, 2, 31));
+        com.zoocraft.animal.AnimalCensus.refresh(setup.zoo(), helper.getLevel());
+        Visitor visitor = visitor(helper, setup, UUID.randomUUID(), true, 28, 28, 10);
+        visitor.testSetPhase(VisitorPhase.EXPLORING);
+        ServerPlayer player = helper.makeMockServerPlayerInLevel();
+        BlockPos p = helper.absolutePos(new BlockPos(28, 2, 25));
+        player.moveTo(p.getX() + 0.5, p.getY(), p.getZ() + 0.5);
+        int[] ticks = new int[3]; // measured, at the player, at an animal
+        helper.onEachTick(() -> {
+            if (helper.getTick() < 100 || ticks[0] >= 1200) {
+                return;
+            }
+            ticks[0]++;
+            var look = net.tslat.smartbrainlib.util.BrainUtils.getMemory(visitor,
+                    net.minecraft.world.entity.ai.memory.MemoryModuleType.LOOK_TARGET);
+            if (look instanceof net.minecraft.world.entity.ai.behavior.EntityTracker tracker) {
+                if (tracker.getEntity() == player) {
+                    ticks[1]++;
+                } else if (tracker.getEntity() instanceof net.minecraft.world.entity.animal.Pig) {
+                    ticks[2]++;
+                }
+            }
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(ticks[0] >= 1200, "still measuring");
+            helper.assertTrue(ticks[1] < 0.15 * ticks[0], "looked at the player " + ticks[1] + " of " + ticks[0] + " ticks");
+            helper.assertTrue(ticks[2] > 0.5 * ticks[0], "looked at the animals only " + ticks[2] + " of " + ticks[0] + " ticks");
+            visitor.discard();
+            player.discard();
+            TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
+        });
+    }
 }
