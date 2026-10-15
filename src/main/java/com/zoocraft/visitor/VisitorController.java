@@ -49,6 +49,13 @@ public final class VisitorController {
     static final int CROWD_SIZE = 2;
     static final long STEP_ASIDE_TICKS = 3 * 20;
     static final int STEP_ASIDE_RADIUS = 3;
+    /** Targets further than this share of the search range are walked via waypoints. */
+    static final double WAYPOINT_SHARE = 0.75;
+    /** How far ahead a waypoint is placed, and the sideways offsets tried when the straight line is blocked. */
+    static final int WAYPOINT_AHEAD = 24;
+    private static final int[] WAYPOINT_OFFSETS = {0, 4, -4, 8, -8, 12, -12, 16, -16};
+    /** Within this of the waypoint, the next one is chosen. */
+    static final double WAYPOINT_REACHED = 4.0;
 
     private final Visitor visitor;
     private boolean checkedLoad;
@@ -61,6 +68,9 @@ public final class VisitorController {
     private long stepAsideUntil;
     private @Nullable BlockPos asideSpot;
     private int stepAsides;
+    // Long walks go via waypoints (Phase 3 spec section 8.4).
+    private @Nullable BlockPos waypoint;
+    private int waypointTries;
     private int failedRoutes;
     private long lingerUntil;
 
@@ -412,6 +422,7 @@ public final class VisitorController {
             progress.onTarget(now);
             steppedAside = false;
             stepAsideUntil = 0;
+            waypoint = null;
         }
         if (closeTo(target, 2.0)) {
             visitor.releaseNow(null);
@@ -467,6 +478,8 @@ public final class VisitorController {
         progress.onTarget(visitor.level().getGameTime());
         steppedAside = false;
         stepAsideUntil = 0;
+        waypoint = null;
+        waypointTries = 0;
         BrainUtils.setMemory(visitor, MemoryModuleType.WALK_TARGET, new WalkTarget(pos, WALK_SPEED, 1));
     }
 
@@ -486,12 +499,14 @@ public final class VisitorController {
             // Back to the real target, with one fresh plan.
             stepAsideUntil = 0;
             progress.onStepAside(now);
-            BrainUtils.setMemory(visitor, MemoryModuleType.WALK_TARGET, new WalkTarget(pos, WALK_SPEED, 1));
+            BrainUtils.clearMemory(visitor, MemoryModuleType.WALK_TARGET);
         }
         double distance = Math.sqrt(visitor.distanceToSqr(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5));
         progress.update(distance, now);
-        if (!BrainUtils.hasMemory(visitor, MemoryModuleType.WALK_TARGET)) {
-            BrainUtils.setMemory(visitor, MemoryModuleType.WALK_TARGET, new WalkTarget(pos, WALK_SPEED, 1));
+        BlockPos walkTo = legTowards(pos, distance);
+        WalkTarget current = BrainUtils.getMemory(visitor, MemoryModuleType.WALK_TARGET);
+        if (current == null || !current.getTarget().currentBlockPosition().equals(walkTo)) {
+            BrainUtils.setMemory(visitor, MemoryModuleType.WALK_TARGET, new WalkTarget(walkTo, WALK_SPEED, 1));
         }
         // A nearby target that path searches keep missing can't be reached (inside a pen, behind a wall): give up on
         // this route now rather than after the no-progress timeout, which costs a full search every few ticks.
@@ -510,6 +525,61 @@ public final class VisitorController {
             return routeFailed(now);
         }
         return false;
+    }
+
+    /**
+     * Where to walk now: the target itself when one search reaches it, otherwise a waypoint about 24 blocks closer.
+     * A partial path towards a far target heads for whatever reachable block lies nearest it, which in a park full of
+     * pens is often a dead end against a fence; waypoints are standable blocks outside pens, paths preferred, so each
+     * leg is a short plan that arrives (spec 8.4).
+     */
+    private BlockPos legTowards(BlockPos pos, double distance) {
+        if (distance <= ZooConfig.VISITOR_FOLLOW_RANGE.get() * WAYPOINT_SHARE || !(visitor.level() instanceof ServerLevel level)) {
+            waypoint = null;
+            return pos;
+        }
+        VisitorNavigation nav = visitor.getNavigation() instanceof VisitorNavigation n ? n : null;
+        boolean missed = waypoint != null && nav != null && nav.missesInARow(waypoint) >= MISSES_BEFORE_GIVING_UP;
+        if (waypoint == null || missed || closeTo(waypoint, WAYPOINT_REACHED)) {
+            if (missed) {
+                nav.forgetMisses(waypoint);
+                waypointTries++; // start the sideways search further along next time
+            }
+            waypoint = pickWaypoint(level, pos);
+        }
+        return waypoint != null ? waypoint : pos;
+    }
+
+    private @Nullable BlockPos pickWaypoint(ServerLevel level, BlockPos pos) {
+        double dx = pos.getX() + 0.5 - visitor.getX(), dz = pos.getZ() + 0.5 - visitor.getZ();
+        double length = Math.sqrt(dx * dx + dz * dz);
+        if (length < 1) {
+            return null;
+        }
+        dx /= length;
+        dz /= length;
+        Zoo zoo = visitor.zoo().orElse(null);
+        boolean inside = zoo != null && (visitor.phase == VisitorPhase.EXPLORING || visitor.phase == VisitorPhase.LEAVING);
+        BlockPos fallback = null;
+        for (int i = 0; i < WAYPOINT_OFFSETS.length; i++) {
+            int offset = WAYPOINT_OFFSETS[(i + waypointTries) % WAYPOINT_OFFSETS.length];
+            int x = (int) Math.floor(visitor.getX() + dx * WAYPOINT_AHEAD - dz * offset);
+            int z = (int) Math.floor(visitor.getZ() + dz * WAYPOINT_AHEAD + dx * offset);
+            if (!level.isLoaded(new BlockPos(x, 0, z)) || zoo != null && com.zoocraft.animal.AnimalCensus.insidePen(zoo, x, z)) {
+                continue;
+            }
+            Optional<BlockPos> feet = Standing.findInColumn(level, x, visitor.getBlockY(), z, 4);
+            if (feet.isEmpty() || inside && !goodSpot(level, zoo, feet.get()) || !level.getFluidState(feet.get()).isEmpty()) {
+                continue;
+            }
+            if (level.getBlockState(feet.get().below()).is(com.zoocraft.registry.ZooTags.VISITOR_PATHS)) {
+                return feet.get();
+            }
+            if (fallback == null) {
+                fallback = feet.get();
+            }
+        }
+        return fallback;
     }
 
     private boolean hemmedIn() {
@@ -615,6 +685,11 @@ public final class VisitorController {
 
     public @Nullable BlockPos target() {
         return target;
+    }
+
+    /** The waypoint on a long walk, if the visitor is using one (for tests and debugging). */
+    public @Nullable BlockPos waypoint() {
+        return waypoint;
     }
 
     /** Times this visitor has stepped aside from a crowd (for tests and debugging). */

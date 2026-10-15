@@ -134,7 +134,7 @@ public final class AnimalGameTests {
     }
 
     /** Fences the square ring from (min, min) to (max, max) at standing height. */
-    static void fenceRing(GameTestHelper helper, int min, int max) {
+    public static void fenceRing(GameTestHelper helper, int min, int max) {
         for (int i = min; i <= max; i++) {
             helper.setBlock(new BlockPos(i, 2, min), Blocks.OAK_FENCE);
             helper.setBlock(new BlockPos(i, 2, max), Blocks.OAK_FENCE);

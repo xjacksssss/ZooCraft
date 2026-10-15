@@ -331,7 +331,8 @@ public final class PerfGameTests {
         });
     }
 
-    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 400)
+    // Its own batch: vanilla re-plans paths when nearby blocks change, so other tests building next door would add plans.
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 400, batch = "alone_planning")
     public static void arrivedVisitorsStopPlanning(GameTestHelper helper) {
         // An empty zoo: the visitor wanders between random spots and lingers at each. While lingering it should not
         // keep planning paths to the exact block it already stands beside.
@@ -576,5 +577,39 @@ public final class PerfGameTests {
         helper.assertTrue(lines.size() == 2 && lines.get(1).contains("minecraft:pig"), "rows: " + lines);
         TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
         helper.succeed();
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 900)
+    public static void farTargetsAreWalkedViaWaypointsOutsidePens(GameTestHelper helper) {
+        // A target 41 blocks away, beyond one search's comfortable reach, with a pen of pigs on the way.
+        ServerPlayer owner = TestZoos.player(helper, "Owner");
+        Zoo zoo = TestZoos.create(helper, owner, "Far", TestZoos.rectangle(helper, 2, 2, 45, 45));
+        ZooManager zoos = TestZoos.manager(helper);
+        helper.assertTrue(zoos.addGate(owner, helper.getLevel(), helper.absolutePos(new BlockPos(2, 2, 24))).success(), "gate not added");
+        zoos.setPrice(owner, zoo, 0);
+        zoos.setOpen(owner, zoo, true);
+        AnimalGameTests.fenceRing(helper, 18, 30); // pen floor x and z 19..29
+        helper.spawnWithNoFreeWill(EntityType.PIG, new BlockPos(24, 2, 24));
+        com.zoocraft.animal.AnimalCensus.refresh(zoo, helper.getLevel());
+        com.zoocraft.animal.AnimalCensus.runPendingFills(helper.getLevel().getServer(), 100);
+        Visitor visitor = exploringVisitor(helper, new Setup(owner, zoo, zoo.gates().getFirst()), 4, 24);
+        BlockPos target = helper.absolutePos(new BlockPos(44, 2, 25));
+        BlockPos origin = helper.absolutePos(BlockPos.ZERO);
+        boolean[] usedWaypoint = {false};
+        helper.runAfterDelay(3, () -> visitor.controller().testWalkTo(target));
+        helper.onEachTick(() -> {
+            BlockPos waypoint = visitor.controller().waypoint();
+            if (waypoint != null) {
+                usedWaypoint[0] = true;
+                int x = waypoint.getX() - origin.getX(), z = waypoint.getZ() - origin.getZ();
+                helper.assertFalse(x >= 19 && x <= 29 && z >= 19 && z <= 29, "a waypoint inside the pen at " + x + "," + z);
+            }
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(usedWaypoint[0], "no waypoint for a target 40 blocks away");
+            helper.assertTrue(visitor.distanceToSqr(target.getX() + 0.5, target.getY(), target.getZ() + 0.5) < 9, "not there yet");
+            visitor.discard();
+            TestZoos.cleanUp(helper, owner, zoo);
+        });
     }
 }

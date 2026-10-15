@@ -45,10 +45,13 @@ Stop the server (`python tools/rcon.py stop`) and run `python tools/perf/perf_wo
 ## Exhibit coverage
 
 ```bash
-python coverage.py cov "Big Park" 100 20
+python coverage.py cov "Big Park" 100 20 --sprint
 ```
 
 Spawns 100 visitors, then runs 20 minutes and compares each exhibit's view count before and after (from
 `/zoo debug perf exhibits`, which writes `logs/zoocraft-exhibits.csv`). It reports the share of exhibits viewed during the
 run, the median and maximum views, their ratio (the spec's target is at most 4) and the longest time any visitor was stuck.
 Kill leftover visitors first (`kill @e[type=zoocraft:visitor]`): lowering the limit doesn't remove them.
+
+`--sprint` runs the 20 minutes of game time with `/tick sprint`, a game minute at a time, so it finishes in a few real
+minutes. Views and stuck times count game time, so the results mean the same; don't read tick timings from such a run.

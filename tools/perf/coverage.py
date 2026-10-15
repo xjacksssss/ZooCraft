@@ -1,10 +1,14 @@
 """Exhibit coverage over a long run (Phase 3 spec sections 1 and 8.3).
 
-Usage: python tools/perf/coverage.py <tag> "<zoo>" <visitors> <minutes>
+Usage: python tools/perf/coverage.py <tag> "<zoo>" <visitors> <minutes> [--sprint]
 Sets the per-zoo limit, spawns visitors until 90% are there, writes the exhibit list with /zoo debug perf exhibits at the
 start and at the end, and samples /zoo debug perf "<zoo>" once a minute for the stuck count and the longest stuck time.
 Prints and appends to tools/perf/results/<tag>.md: exhibits, share viewed during the run, median and maximum views during
 the run, the max/median ratio, and the worst stuck time seen.
+
+With --sprint the run's game time passes as fast as the server can tick (/tick sprint), one game minute at a time, so a
+20-minute run takes a few real minutes. Coverage and stuck times count game time, so the results mean the same; tick
+timings from a sprinted run mean nothing, so measure those with ramp.py.
 """
 import csv
 import pathlib
@@ -33,6 +37,10 @@ def stuck(r, zoo):
     return count, longest
 
 
+def game_time(r):
+    return int(re.search(r"(\d+)", r.command("time query gametime")).group(1))
+
+
 def main():
     tag, zoo, visitors, minutes = sys.argv[1], sys.argv[2], int(sys.argv[3]), int(sys.argv[4])
     RESULTS.mkdir(exist_ok=True)
@@ -45,8 +53,15 @@ def main():
         time.sleep(1)
     before = snapshot(r, zoo)
     worst_count, worst_time = 0, 0
+    sprint = "--sprint" in sys.argv
     for _ in range(minutes):
-        time.sleep(60)
+        if sprint:
+            until = game_time(r) + 1200
+            r.command("tick sprint 1200")
+            while game_time(r) < until:
+                time.sleep(1)
+        else:
+            time.sleep(60)
         count, longest = stuck(r, zoo)
         worst_count, worst_time = max(worst_count, count), max(worst_time, longest)
         print(f"  stuck {count}, longest {longest} s", flush=True)
