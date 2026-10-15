@@ -1,5 +1,6 @@
 package com.zoocraft.animal;
 
+import com.zoocraft.core.exhibit.Enclosure;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.Vec3;
@@ -13,6 +14,13 @@ import java.util.UUID;
  * view count and reachability carry over between censuses while its animals stay together.
  */
 public final class Exhibit {
+    /** An open exhibit's animals outside the area searched last time are searched again at most this often. */
+    static final long OPEN_REFILL_TICKS = 60 * 20;
+
+    /** What the exhibit's floor is like, for its rating (Phase 3 spec section 8.5). */
+    public record Surroundings(int natural, boolean waterOrLeaves) {
+    }
+
     private final UUID id;
     private List<Mob> animals = List.of();
     private Set<String> species = Set.of();
@@ -21,6 +29,10 @@ public final class Exhibit {
     private long unreachableUntil;
     private long lastReached = -1;
     private int viewCount;
+    private Enclosure enclosure = Enclosure.NONE;
+    private Surroundings surroundings = new Surroundings(0, false);
+    private long lastFill = Long.MIN_VALUE / 2;
+    private boolean filled;
 
     Exhibit(UUID id) {
         this.id = id;
@@ -33,11 +45,46 @@ public final class Exhibit {
         return exhibit;
     }
 
-    void update(List<Mob> animals, Set<String> species, Vec3 centre, List<BlockPos> viewingSpots) {
+    void update(List<Mob> animals, Set<String> species, Vec3 centre) {
         this.animals = List.copyOf(animals);
         this.species = Set.copyOf(species);
         this.centre = centre;
-        this.viewingSpots = List.copyOf(viewingSpots);
+    }
+
+    /** Spots sampled around the animals, used until a fill finds a bounded enclosure (and always for open exhibits). */
+    void sampledSpots(List<BlockPos> spots) {
+        this.viewingSpots = List.copyOf(spots);
+    }
+
+    /** A fill finished: a bounded enclosure brings its edge spots; an open one keeps the sampled spots. */
+    void filled(Enclosure enclosure, Surroundings surroundings, List<BlockPos> edgeSpots, long now) {
+        this.enclosure = enclosure;
+        this.surroundings = surroundings;
+        this.lastFill = now;
+        this.filled = true;
+        if (enclosure.bounded()) {
+            this.viewingSpots = List.copyOf(edgeSpots);
+        }
+    }
+
+    /**
+     * New, or an animal has left its bounded enclosure (the pen changed), or an open exhibit's animals have wandered
+     * beyond the area searched last time and the last search was a while ago.
+     */
+    boolean needsFill(long now) {
+        if (!filled) {
+            return true;
+        }
+        boolean outside = animals.stream().anyMatch(a -> !enclosure.contains(a.getBlockX(), a.getBlockZ()));
+        return outside && (enclosure.bounded() || now - lastFill > OPEN_REFILL_TICKS);
+    }
+
+    public Enclosure enclosure() {
+        return enclosure;
+    }
+
+    public Surroundings surroundings() {
+        return surroundings;
     }
 
     public UUID id() {

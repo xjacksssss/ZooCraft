@@ -9,6 +9,8 @@ import net.minecraft.world.level.block.Block;
 public final class ZooTags {
     /** Blocks visitors prefer to walk on. Modpacks can extend this tag. */
     public static final TagKey<Block> VISITOR_PATHS = TagKey.create(Registries.BLOCK, ZooCraft.id("visitor_paths"));
+    /** Ground that counts as natural surroundings in an exhibit's rating (Phase 3 spec section 8.5). */
+    public static final TagKey<Block> NATURAL_FLOOR = TagKey.create(Registries.BLOCK, ZooCraft.id("natural_floor"));
 
     /** Items shops never sell (Phase 2 spec section 7.2). */
     public static final TagKey<Item> UNSELLABLE = item("unsellable");

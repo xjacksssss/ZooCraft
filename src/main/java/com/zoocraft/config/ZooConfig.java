@@ -13,6 +13,10 @@ public final class ZooConfig {
     public static final ModConfigSpec.IntValue MAX_VISIT_MINUTES;
     public static final ModConfigSpec.IntValue CENSUS_INTERVAL_SECONDS;
     public static final ModConfigSpec.IntValue VIEWING_RADIUS;
+    public static final ModConfigSpec.IntValue MAX_VIEWING_SPOTS;
+    public static final ModConfigSpec.IntValue VIEWING_SPOT_CAPACITY;
+    public static final ModConfigSpec.IntValue MAX_ENCLOSURE_AREA;
+    public static final ModConfigSpec.IntValue ENCLOSURE_FILLS_PER_TICK;
     public static final ModConfigSpec.IntValue MIN_ZOO_AREA;
     public static final ModConfigSpec.IntValue MAX_ZOO_AREA;
     public static final ModConfigSpec.IntValue MAX_BOUNDARY_VERTICES;
@@ -64,6 +68,15 @@ public final class ZooConfig {
                 .defineInRange("censusIntervalSeconds", 10, 1, 600);
         VIEWING_RADIUS = b.comment("How close, in blocks, a visitor must be to see an animal.")
                 .defineInRange("viewingRadius", 6, 2, 32);
+        MAX_VIEWING_SPOTS = b.comment("Most places visitors stand to see one exhibit.")
+                .defineInRange("maxViewingSpots", 12, 1, 64);
+        VIEWING_SPOT_CAPACITY = b.comment("How many visitors one viewing spot holds.")
+                .defineInRange("viewingSpotCapacity", 2, 1, 16);
+        MAX_ENCLOSURE_AREA = b.comment("Largest pen floor, in blocks, searched for one exhibit. Bigger pens count as open land,",
+                        "with viewing spots around the animals themselves.")
+                .defineInRange("maxEnclosureArea", 1024, 64, 16384);
+        ENCLOSURE_FILLS_PER_TICK = b.comment("Most exhibit enclosure searches per server tick, across all zoos.")
+                .defineInRange("enclosureFillsPerTick", 2, 1, 32);
         b.pop();
 
         b.push("boundaries");

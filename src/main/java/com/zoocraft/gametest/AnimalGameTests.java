@@ -3,6 +3,7 @@ package com.zoocraft.gametest;
 import com.zoocraft.ZooCraft;
 import com.zoocraft.animal.AnimalCensus;
 import com.zoocraft.animal.AnimalRecognition;
+import com.zoocraft.animal.Exhibit;
 import com.zoocraft.animal.Viewing;
 import com.zoocraft.animal.ZooCensus;
 import com.zoocraft.core.visitor.VisitorProfile;
@@ -126,5 +127,80 @@ public final class AnimalGameTests {
             visitor.discard();
             TestZoos.cleanUp(helper, owner, zoo);
         });
+    }
+
+    /** Fences the square ring from (min, min) to (max, max) at standing height. */
+    static void fenceRing(GameTestHelper helper, int min, int max) {
+        for (int i = min; i <= max; i++) {
+            helper.setBlock(new BlockPos(i, 2, min), Blocks.OAK_FENCE);
+            helper.setBlock(new BlockPos(i, 2, max), Blocks.OAK_FENCE);
+            helper.setBlock(new BlockPos(min, 2, i), Blocks.OAK_FENCE);
+            helper.setBlock(new BlockPos(max, 2, i), Blocks.OAK_FENCE);
+        }
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1600)
+    public static void aTwentyByTwentyPenGetsSpotsOutsideTheFenceAndIsViewed(GameTestHelper helper) {
+        ServerPlayer owner = TestZoos.player(helper, "Owner");
+        Zoo zoo = TestZoos.create(helper, owner, "Big pen", TestZoos.rectangle(helper, 2, 2, 45, 45));
+        ZooManager zoos = TestZoos.manager(helper);
+        zoos.addGate(owner, helper.getLevel(), helper.absolutePos(new BlockPos(2, 2, 24)));
+        zoos.setPrice(owner, zoo, 0);
+        zoos.setOpen(owner, zoo, true);
+        fenceRing(helper, 13, 34); // a 20 by 20 floor inside, x and z 14..33
+        helper.spawnWithNoFreeWill(EntityType.COW, at(16, 16));
+        helper.spawnWithNoFreeWill(EntityType.COW, at(17, 15));
+        helper.runAfterDelay(2, () -> {
+            ZooCensus census = AnimalCensus.refresh(zoo, helper.getLevel());
+            AnimalCensus.runPendingFills(helper.getLevel().getServer(), 100);
+            Exhibit exhibit = census.exhibits().getFirst();
+            helper.assertTrue(exhibit.enclosure().bounded() && exhibit.enclosure().area() == 400,
+                    "enclosure " + exhibit.enclosure().bounded() + " " + exhibit.enclosure().area());
+            helper.assertFalse(exhibit.viewingSpots().isEmpty(), "no spots");
+            BlockPos origin = helper.absolutePos(BlockPos.ZERO);
+            for (BlockPos spot : exhibit.viewingSpots()) {
+                int x = spot.getX() - origin.getX(), z = spot.getZ() - origin.getZ();
+                helper.assertFalse(x >= 13 && x <= 34 && z >= 13 && z <= 34, "spot inside the fence at " + x + "," + z);
+            }
+            Visitor visitor = PerfGameTests.exploringVisitor(helper, new PerfGameTests.Setup(owner, zoo, zoo.gates().getFirst()), 8, 8);
+            visitor.testSetBudget(VisitorProfile.ANIMAL_ENTHUSIAST, 10, 1.0);
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(zoo.stats().commentTally().getOrDefault("amazing_exhibit", 0) >= 1, "the cows haven't been viewed");
+            TestZoos.cleanUp(helper, owner, zoo);
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR)
+    public static void animalsAreFoundAtAnyHeight(GameTestHelper helper) {
+        ServerPlayer owner = TestZoos.player(helper, "Owner");
+        Zoo zoo = TestZoos.create(helper, owner, "Deep", TestZoos.rectangle(helper, 2, 2, 29, 29));
+        BlockPos floor = helper.absolutePos(at(10, 10));
+        // The test floor sits near the bottom of the world, so the animal goes 70 blocks up (the old search reached 64).
+        int y = floor.getY() - 60 >= helper.getLevel().getMinBuildHeight() + 2 ? floor.getY() - 60 : floor.getY() + 70;
+        Mob cow = EntityType.COW.create(helper.getLevel());
+        cow.setNoAi(true);
+        cow.setNoGravity(true);
+        cow.moveTo(floor.getX() + 0.5, y, floor.getZ() + 0.5, 0, 0);
+        helper.getLevel().addFreshEntity(cow);
+        ZooCensus census = AnimalCensus.refresh(zoo, helper.getLevel());
+        helper.assertTrue(census.animals().contains(cow), "the cow " + (y - floor.getY()) + " blocks away vertically wasn't counted");
+        cow.discard();
+        TestZoos.cleanUp(helper, owner, zoo);
+        helper.succeed();
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR)
+    public static void unfencedAnimalsStillGetSpots(GameTestHelper helper) {
+        ServerPlayer owner = TestZoos.player(helper, "Owner");
+        Zoo zoo = TestZoos.create(helper, owner, "Open", TestZoos.rectangle(helper, 2, 2, 29, 29));
+        helper.spawnWithNoFreeWill(EntityType.SHEEP, at(15, 15));
+        ZooCensus census = AnimalCensus.refresh(zoo, helper.getLevel());
+        AnimalCensus.runPendingFills(helper.getLevel().getServer(), 100);
+        Exhibit exhibit = census.exhibits().getFirst();
+        helper.assertFalse(exhibit.enclosure().bounded(), "an unfenced sheep has a bounded enclosure");
+        helper.assertFalse(AnimalCensus.refresh(zoo, helper.getLevel()).exhibits().getFirst().viewingSpots().isEmpty(), "no spots");
+        TestZoos.cleanUp(helper, owner, zoo);
+        helper.succeed();
     }
 }

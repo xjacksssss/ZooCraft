@@ -1,0 +1,24 @@
+{
+  "replace": false,
+  "values": [
+    "minecraft:grass_block",
+    "minecraft:dirt",
+    "minecraft:coarse_dirt",
+    "minecraft:podzol",
+    "minecraft:rooted_dirt",
+    "minecraft:mud",
+    "minecraft:moss_block",
+    "minecraft:moss_carpet",
+    "minecraft:sand",
+    "minecraft:red_sand",
+    "minecraft:gravel",
+    "minecraft:snow_block",
+    "minecraft:snow",
+    "minecraft:powder_snow",
+    "minecraft:clay",
+    "minecraft:mycelium",
+    "#minecraft:leaves",
+    { "id": "#c:sands", "required": false },
+    { "id": "#c:gravels", "required": false }
+  ]
+}
