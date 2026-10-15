@@ -204,7 +204,20 @@ A new `simulation` config section (section 10) exposes the intervals that were c
 
 Only built if section 7.1 misses its target. Visitors with no player within `farVisitorDistance` (default 64 blocks) run their controller and their brain's idle tasks every `farVisitorStepMultiplier` (default 2) steps. Movement keeps ticking every tick, so walking stays smooth. Viewing, needs and timers use elapsed game time rather than step counts, so results don't change with the multiplier. If built, it is off by default for zoos with fewer than 50 visitors.
 
-### 7.6 Acceptance tests (M10)
+### 7.6 Where visitors look
+
+Visitors currently stare at players. Their idle tasks try SmartBrainLib's `SetPlayerLookTarget` first, so any visitor near a player watches that player for as long as the player stays nearby. In a zoo, visitors should be looking at the animals.
+
+A new `ChooseLookTarget` behaviour replaces the `FirstApplicableBehaviour(SetPlayerLookTarget, SetRandomLookTarget)` pair. Each time the visitor needs a new look target (when the last one expires), it picks, in this order:
+
+1. **While lingering at an exhibit or viewing animals:** a living animal of that exhibit within viewing distance, from the census cache. A new one is chosen every 3 to 6 seconds, so the visitor's gaze moves around the pen.
+2. **While walking:** a point a few blocks ahead along its path, or a cached animal it passes within viewing distance, with a 30% chance per choice.
+3. **A glance at a player:** only when a player is within 6 blocks, with a 10% chance per choice, for 1 to 2 seconds. After a glance, that visitor won't look at a player again for 20 to 40 seconds. A player who right-clicks a visitor to read its info gets a 3-second look, with no cooldown.
+4. **Otherwise:** a random nearby direction, as `SetRandomLookTarget` does now.
+
+A group leader's group members may look at the leader instead of a random direction (20% chance), so groups read as groups. Animals come from the cached census only, never from an entity search, so the behaviour costs nothing measurable. It runs inside the existing brain timer slot (section 6.1).
+
+### 7.7 Acceptance tests (M10)
 
 - JUnit: `Occupancy` claim, release, capacity and leak-free release on removal; `SpotChoice` prefers empty and path spots.
 - GameTest: a visitor walking a 30-block straight path with `pathShortcutMode = EVERY_NODE` arrives in the same time (within 10%) as with `EVERY_TICK`.
@@ -212,6 +225,9 @@ Only built if section 7.1 misses its target. Visitors with no player within `far
 - GameTest: a counter with capacity 1 and two hungry visitors serves both in turn; with a long wait, the second tries another shop.
 - GameTest: a group of 4 queues on separate gate slots.
 - GameTest: closing a zoo with 30 visitors and 2 gates sends visitors to both gates, and everyone has left within the existing time limit.
+- JUnit: the look-target choice order, the player-glance chance and its cooldown (pure logic in `core.visitor.LookChoice`).
+- GameTest: a visitor lingering at an exhibit with a player standing 3 blocks away spends less than 15% of 60 seconds looking at the player, and most of that time looking at the exhibit's animals.
+- Manual: stand among visitors at an exhibit. They look at the animals and only glance at you now and then.
 - Manual (harness): rerun the Big Park and four-zoo ramps. Section 7.1's targets are met and the results go into `docs/performance.md`.
 
 ## 8. Exhibit evaluation and route selection (M11)
@@ -351,7 +367,7 @@ Repeat the Phase 1 M4 check with the M12 jar: install a NeoForge 21.1.251 dedica
 | Milestone | Scope | Done when |
 |---|---|---|
 | **M9 Diagnostics and harness** | Section 6: timers, `/zoo debug perf` and its log, the recognition report, `tools/perf/`, the `simulation` config section | M9 acceptance tests pass and the harness reproduces section 3.2 |
-| **M10 Crowd movement** | Section 7: cheaper path following, spot, gate and counter occupancy, crowd recovery; section 7.5 only if needed | M10 acceptance tests pass and the section 7.1 target is met |
+| **M10 Crowd movement** | Section 7: cheaper path following, spot, gate and counter occupancy, crowd recovery, where visitors look; section 7.5 only if needed | M10 acceptance tests pass and the section 7.1 target is met |
 | **M11 Exhibits and routes** | Section 8: enclosures, viewing spots, full-height search, route selection, exhibit ratings | M11 acceptance tests pass and the coverage target is met |
 | **M12 Compatibility and sign-off** | Section 9: ATM10 recognition, limit rule and defaults, performance doc, large-park and multi-zoo runs, standalone jar, CLAUDE.md | Every section 1 criterion is checked and recorded |
 
@@ -365,6 +381,7 @@ Each milestone gets its plan just before it starts and ends with a play-test che
 4. **Space thresholds are generic:** 12 floor blocks per animal for full marks, with large animals counting double (8.5). No per-species rules until Phase 4.
 5. **Route choice favours unseen and less-visited exhibits** more than Phase 1 did (8.3), so visitors walk further in big zoos.
 6. **Default limits change** to whatever section 9.2 gives, probably higher than 12 and 40.
+7. **Visitors mostly ignore players:** a 10% chance of a 1 to 2 second glance at a player within 6 blocks, then 20 to 40 seconds before the next (7.6).
 
 ## 13. Known risks
 
