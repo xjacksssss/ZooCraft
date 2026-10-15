@@ -259,6 +259,7 @@ public final class VisitorController {
         VisitorExploration.noticeLitter(visitor, zoo, now);
         errands.tickHeld(level, now);
         errands.tickRubbish(zoo, level, now);
+        errands.renewClaims(now);
         if (endingByChoice && target != null && !errands.active()) {
             // Don't finish the walk to another exhibit; decide how to leave now.
             target = null;

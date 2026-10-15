@@ -19,11 +19,12 @@ import com.zoocraft.shop.FacilityCensus;
 import com.zoocraft.shop.FacilityReach;
 import com.zoocraft.shop.FacilitySnapshot;
 import com.zoocraft.shop.ProductCatalog;
-import com.zoocraft.shop.ToiletOccupancy;
+import com.zoocraft.shop.FacilityOccupancy;
 import com.zoocraft.litter.Littering;
 import com.zoocraft.litter.RubbishBinBlockEntity;
 import com.zoocraft.registry.ZooItems;
 import com.zoocraft.zoo.Shop;
+import com.zoocraft.zoo.Standing;
 import com.zoocraft.zoo.Zoo;
 import com.zoocraft.zoo.ZooManager;
 import net.minecraft.core.BlockPos;
@@ -65,6 +66,12 @@ public final class VisitorErrands {
     static final long TOILET_WAIT_TICKS = 20 * 20;
     /** While waiting for a free toilet, check again this often. */
     static final long TOILET_RETRY_TICKS = 40;
+    /** How long a visitor waits for a place at a full counter before trying another shop (Phase 3 spec section 7.3). */
+    static final long COUNTER_WAIT_TICKS = 20 * 20;
+    /** While waiting for a counter, check again this often. */
+    static final long COUNTER_RETRY_TICKS = 40;
+    /** Eating sounds and crumbs at most this often, whatever the visitor step. */
+    static final long HELD_EFFECT_TICKS = 10;
     /** How long a visitor carries rubbish looking for a bin before dropping it or taking it home. */
     static final long RUBBISH_CARRY_TICKS = 30 * 20;
 
@@ -88,6 +95,12 @@ public final class VisitorErrands {
     private long usingUntil;
     private long waitingSince;
 
+    // The shop counter: heading for it with a place claimed, or waiting nearby for one.
+    private @Nullable BlockPos counterPos;
+    private @Nullable BlockPos waitPos;
+    private long counterWaitSince;
+    private boolean atCounter;
+
     // Rubbish left over from eating, and the bin the visitor is taking it to.
     private long rubbishSince;
     private int rubbishVariant;
@@ -97,6 +110,7 @@ public final class VisitorErrands {
     private long holdUntil;
     private boolean eating;
     private boolean drink;
+    private long lastHeldEffect = Long.MIN_VALUE / 2;
 
     VisitorErrands(Visitor visitor) {
         this.visitor = visitor;
@@ -154,6 +168,15 @@ public final class VisitorErrands {
             return new Choice(Errand.TOILET, Optional.of(toiletPos));
         }
         FacilitySnapshot snapshot = FacilityCensus.of(zoo, level);
+        if ((current == Errand.FOOD || current == Errand.SOUVENIR) && counterWaitSince != 0) {
+            Optional<Choice> waiting = keepWaiting(zoo, level, now);
+            if (waiting.isPresent()) {
+                return waiting.get();
+            }
+        }
+        if (!active()) {
+            clearCounter(); // the last purchase is done: free the counter
+        }
         int threshold = ZooConfig.NEED_THRESHOLD.get();
         // A visitor still eating its last purchase isn't hungry for another.
         boolean hungry = visitor.needs.wants(Need.HUNGER, threshold) && !(eating && holdUntil != 0);
@@ -173,14 +196,14 @@ public final class VisitorErrands {
                 return new Choice(Errand.LEAVE, Optional.empty());
             }
             case FOOD -> {
-                Optional<BlockPos> counter = startShopping(zoo, snapshot, REFRESHMENTS, Errand.FOOD, now);
+                Optional<BlockPos> counter = startShopping(zoo, level, snapshot, REFRESHMENTS, Errand.FOOD, now);
                 if (counter.isPresent()) {
                     return new Choice(Errand.FOOD, counter);
                 }
             }
             case SOUVENIR -> {
                 visitor.lastStopDone = true;
-                Optional<BlockPos> counter = startShopping(zoo, snapshot, SOUVENIRS, Errand.SOUVENIR, now);
+                Optional<BlockPos> counter = startShopping(zoo, level, snapshot, SOUVENIRS, Errand.SOUVENIR, now);
                 if (counter.isPresent()) {
                     return new Choice(Errand.SOUVENIR, counter);
                 }
@@ -249,8 +272,113 @@ public final class VisitorErrands {
         return false;
     }
 
+    /** Like {@link #anyStocked}, leaving out shops already tried for this errand. */
+    private boolean anyUntriedStocked(Zoo zoo, FacilitySnapshot snapshot, Set<ProductCategory> categories, long now) {
+        for (FacilitySnapshot.ShopState shop : snapshot.shops()) {
+            if (!shop.usable() || triedShops.contains(shop.shopId()) || FacilityReach.isUnreachable(zoo, shop.shopId(), now)) {
+                continue;
+            }
+            for (FacilitySnapshot.Product product : shop.products()) {
+                if (categories.contains(product.category()) && product.count() > 0) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
+    // ------------------------------------------------------------------ counters (Phase 3 spec section 7.3)
+
+    /** Claims a counter place and heads for the counter, or heads for a waiting spot nearby when it is full. */
+    private BlockPos approachCounter(Zoo zoo, ServerLevel level, long now) {
+        if (FacilityOccupancy.tryOccupy(shopId, visitor.getUUID(), now, ZooConfig.COUNTER_CAPACITY.get())) {
+            atCounter = true;
+            counterWaitSince = 0;
+            return counterPos;
+        }
+        atCounter = false;
+        if (counterWaitSince == 0) {
+            counterWaitSince = now;
+        }
+        if (waitPos == null) {
+            waitPos = waitingSpot(zoo, level, counterPos).orElse(counterPos);
+        }
+        return waitPos;
+    }
+
+    /** A standable block 2 to 3 blocks from the counter, inside the zoo, nearest the visitor. */
+    private Optional<BlockPos> waitingSpot(Zoo zoo, ServerLevel level, BlockPos counter) {
+        BlockPos best = null;
+        for (int dx = -3; dx <= 3; dx++) {
+            for (int dz = -3; dz <= 3; dz++) {
+                if (Math.max(Math.abs(dx), Math.abs(dz)) < 2) {
+                    continue;
+                }
+                Optional<BlockPos> feet = Standing.findStandable(level, counter.offset(dx, 0, dz), 1);
+                if (feet.isPresent() && VisitorController.goodSpot(level, zoo, feet.get())
+                        && (best == null || feet.get().distSqr(visitor.blockPosition()) < best.distSqr(visitor.blockPosition()))) {
+                    best = feet.get();
+                }
+            }
+        }
+        return Optional.ofNullable(best);
+    }
+
+    /** Waiting for a place at a full counter: keep waiting, or give up when the shop has gone or the wait was too long. */
+    private Optional<Choice> keepWaiting(Zoo zoo, ServerLevel level, long now) {
+        Errand errand = current;
+        UUID shop = shopId;
+        if (shop == null || counterPos == null || zoo.shop(shop).isEmpty()) {
+            clearCounter();
+            current = Errand.EXHIBIT;
+            retryOrGiveUp(errand, shop, now);
+            return Optional.empty();
+        }
+        if (now - counterWaitSince >= COUNTER_WAIT_TICKS) {
+            queueTooLong(zoo, FacilityCensus.cached(zoo), errand, now);
+            return Optional.empty();
+        }
+        return Optional.of(new Choice(errand, Optional.of(approachCounter(zoo, level, now))));
+    }
+
+    /** Waited too long: try another shop that sells what's wanted, or complain about the queue. */
+    private void queueTooLong(Zoo zoo, FacilitySnapshot snapshot, Errand errand, long now) {
+        UUID shop = shopId;
+        clearCounter();
+        current = Errand.EXHIBIT;
+        triedShops.add(shop);
+        if (!anyUntriedStocked(zoo, snapshot, errand == Errand.SOUVENIR ? SOUVENIRS : REFRESHMENTS, now)) {
+            visitor.remark(CommentType.SHOP_QUEUE, shop.toString());
+            if (errand == Errand.FOOD) {
+                giveUpOnFood(now);
+            }
+        }
+    }
+
+    /** Frees the counter place, if any, and forgets the wait. */
+    private void clearCounter() {
+        if (shopId != null) {
+            FacilityOccupancy.release(shopId, visitor.getUUID());
+        }
+        counterWaitSince = 0;
+        waitPos = null;
+        atCounter = false;
+    }
+
+    /** Every exploring step: keeps the counter place while heading for it. */
+    void renewClaims(long now) {
+        if (atCounter && shopId != null && (current == Errand.FOOD || current == Errand.SOUVENIR)) {
+            FacilityOccupancy.tryOccupy(shopId, visitor.getUUID(), now, Integer.MAX_VALUE);
+        }
+    }
+
+    /** Frees every counter and toilet place this visitor holds. */
+    void releaseClaims() {
+        FacilityOccupancy.releaseAll(visitor.getUUID());
+    }
+
     /** Picks what to buy and where. Returns the counter to walk to, or empty when nothing suits. */
-    private Optional<BlockPos> startShopping(Zoo zoo, FacilitySnapshot snapshot, Set<ProductCategory> wanted, Errand errand, long now) {
+    private Optional<BlockPos> startShopping(Zoo zoo, ServerLevel level, FacilitySnapshot snapshot, Set<ProductCategory> wanted, Errand errand, long now) {
         List<Offer> offers = new ArrayList<>();
         for (FacilitySnapshot.ShopState shop : snapshot.shops()) {
             if (!shop.usable() || triedShops.contains(shop.shopId()) || FacilityReach.isUnreachable(zoo, shop.shopId(), now)) {
@@ -271,7 +399,11 @@ public final class VisitorErrands {
             current = errand;
             shopId = offer.shopId();
             itemId = offer.itemId();
-            return snapshot.shop(offer.shopId()).map(FacilitySnapshot.ShopState::counter);
+            counterPos = snapshot.shop(offer.shopId()).map(FacilitySnapshot.ShopState::counter).orElse(null);
+            counterWaitSince = 0;
+            waitPos = null;
+            atCounter = false;
+            return counterPos == null ? Optional.empty() : Optional.of(approachCounter(zoo, level, now));
         }
         boolean food = errand == Errand.FOOD;
         switch (result.outcome()) {
@@ -306,6 +438,7 @@ public final class VisitorErrands {
     }
 
     private void giveUpOnFood(long now) {
+        clearCounter();
         foodCooldownUntil = now + COOLDOWN_TICKS;
         triedShops.clear();
         current = Errand.EXHIBIT;
@@ -320,6 +453,9 @@ public final class VisitorErrands {
      */
     long onArrived(Zoo zoo, ServerLevel level, long now) {
         if (current == Errand.FOOD || current == Errand.SOUVENIR) {
+            if (!atCounter) {
+                return COUNTER_RETRY_TICKS; // at the waiting spot; choose() tries for a place again
+            }
             buy(zoo, level, now);
             return SERVE_TICKS;
         }
@@ -378,17 +514,17 @@ public final class VisitorErrands {
         UUID toilet = toiletId;
         if (usingUntil != 0) {
             if (now < usingUntil) {
-                ToiletOccupancy.tryOccupy(toilet, visitor.getUUID(), now, Integer.MAX_VALUE);
+                FacilityOccupancy.tryOccupy(toilet, visitor.getUUID(), now, Integer.MAX_VALUE);
                 return usingUntil - now;
             }
             visitor.needs.useToilet();
             ZooManager.get(visitor.getServer()).recordToiletVisit(zoo);
-            ToiletOccupancy.release(toilet, visitor.getUUID());
+            FacilityOccupancy.release(toilet, visitor.getUUID());
             FacilityReach.clear(zoo, toilet);
             finishToiletErrand();
             return 20;
         }
-        if (ToiletOccupancy.tryOccupy(toilet, visitor.getUUID(), now, ZooConfig.TOILET_CAPACITY.get())) {
+        if (FacilityOccupancy.tryOccupy(toilet, visitor.getUUID(), now, ZooConfig.TOILET_CAPACITY.get())) {
             usingUntil = now + TOILET_USE_TICKS;
             waitingSince = 0;
             return TOILET_USE_TICKS;
@@ -423,6 +559,10 @@ public final class VisitorErrands {
         UUID shop = shopId;
         String item = itemId;
         current = Errand.EXHIBIT;
+        // The place is kept while being served and freed at the next choice.
+        counterWaitSince = 0;
+        waitPos = null;
+        atCounter = false;
         Optional<Shop> maybeShop = shop == null ? Optional.empty() : zoo.shop(shop);
         if (maybeShop.isEmpty() || item == null) {
             retryOrGiveUp(errand, shop, now);
@@ -488,7 +628,13 @@ public final class VisitorErrands {
     void onUnreachable(Zoo zoo, long now) {
         Errand errand = current;
         current = Errand.EXHIBIT;
-        if ((errand == Errand.FOOD || errand == Errand.SOUVENIR) && shopId != null) {
+        if ((errand == Errand.FOOD || errand == Errand.SOUVENIR) && shopId != null && !atCounter && counterWaitSince != 0) {
+            // Couldn't get to the waiting spot beside a busy counter: that says nothing about the shop itself.
+            UUID shop = shopId;
+            clearCounter();
+            retryOrGiveUp(errand, shop, now);
+        } else if ((errand == Errand.FOOD || errand == Errand.SOUVENIR) && shopId != null) {
+            clearCounter();
             FacilityReach.markUnreachable(zoo, shopId, now + UNREACHABLE_TICKS);
             visitor.remark(CommentType.CANT_REACH_SHOP, shopId.toString());
             retryOrGiveUp(errand, shopId, now);
@@ -562,7 +708,8 @@ public final class VisitorErrands {
             return;
         }
         ItemStack held = visitor.getMainHandItem();
-        if (eating && !held.isEmpty()) {
+        if (eating && !held.isEmpty() && now - lastHeldEffect >= HELD_EFFECT_TICKS) {
+            lastHeldEffect = now;
             level.playSound(null, visitor, drink ? SoundEvents.GENERIC_DRINK : SoundEvents.GENERIC_EAT, SoundSource.NEUTRAL, 0.5f,
                     0.9f + visitor.getRandom().nextFloat() * 0.2f);
             if (!drink) {

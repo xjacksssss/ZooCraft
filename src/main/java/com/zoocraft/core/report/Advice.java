@@ -22,6 +22,7 @@ public final class Advice {
             Map.entry("cant_reach_toilet", 3),
             Map.entry("bin_full", 3),
             Map.entry("toilet_queue", 2),
+            Map.entry("shop_queue", 2),
             Map.entry("rubbish", 2),
             Map.entry("cant_reach_exhibit", 2));
 

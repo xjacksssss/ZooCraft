@@ -8,7 +8,8 @@ import com.zoocraft.feedback.CommentType;
 import com.zoocraft.registry.ZooEntities;
 import com.zoocraft.shop.FacilityCensus;
 import com.zoocraft.shop.FacilityReach;
-import com.zoocraft.shop.ToiletOccupancy;
+import com.zoocraft.shop.FacilityOccupancy;
+import com.zoocraft.config.ZooConfig;
 import net.minecraft.world.level.block.Blocks;
 import com.zoocraft.visitor.Visitor;
 import com.zoocraft.visitor.VisitorPhase;
@@ -218,8 +219,8 @@ public final class NeedsGameTests {
         UUID first = UUID.randomUUID(), second = UUID.randomUUID();
         helper.onEachTick(() -> {
             long now = helper.getLevel().getGameTime();
-            ToiletOccupancy.tryOccupy(toilet, first, now, 2);
-            ToiletOccupancy.tryOccupy(toilet, second, now, 2);
+            FacilityOccupancy.tryOccupy(toilet, first, now, 2);
+            FacilityOccupancy.tryOccupy(toilet, second, now, 2);
         });
         helper.succeedWhen(() -> {
             helper.assertTrue(tally(s.zoo(), CommentType.TOILET_QUEUE) == 1, "no queue complaint yet");
@@ -232,10 +233,10 @@ public final class NeedsGameTests {
     @GameTest(template = GameTestTemplates.FLOOR)
     public static void toiletOccupantsThatStopRenewingExpire(GameTestHelper helper) {
         UUID toilet = UUID.randomUUID(), a = UUID.randomUUID(), b = UUID.randomUUID();
-        helper.assertTrue(ToiletOccupancy.tryOccupy(toilet, a, 1000, 1), "empty toilet refused");
-        helper.assertFalse(ToiletOccupancy.tryOccupy(toilet, b, 1100, 1), "full toilet accepted a second visitor");
-        helper.assertTrue(ToiletOccupancy.tryOccupy(toilet, b, 1000 + ToiletOccupancy.EXPIRY_TICKS + 1, 1), "stale occupant never expired");
-        ToiletOccupancy.release(toilet, b);
+        helper.assertTrue(FacilityOccupancy.tryOccupy(toilet, a, 1000, 1), "empty toilet refused");
+        helper.assertFalse(FacilityOccupancy.tryOccupy(toilet, b, 1100, 1), "full toilet accepted a second visitor");
+        helper.assertTrue(FacilityOccupancy.tryOccupy(toilet, b, 1000 + FacilityOccupancy.EXPIRY_TICKS + 1, 1), "stale occupant never expired");
+        FacilityOccupancy.release(toilet, b);
         helper.succeed();
     }
 
@@ -294,5 +295,113 @@ public final class NeedsGameTests {
         visitor.discard();
         old.discard();
         helper.succeed();
+    }
+
+    /** A second hungry visitor exploring the same zoo. */
+    private static Visitor extraHungryVisitor(GameTestHelper helper, Scene scene, BlockPos start) {
+        Visitor visitor = ZooEntities.VISITOR.get().create(helper.getLevel());
+        BlockPos at = helper.absolutePos(start);
+        visitor.moveTo(at.getX() + 0.5, at.getY(), at.getZ() + 0.5, 0, 0);
+        visitor.begin(scene.zoo(), scene.zoo().gates().getFirst(), UUID.randomUUID(), true);
+        visitor.testSetBudget(VisitorProfile.GENERAL, 10, 1.0);
+        visitor.testSetNeeds(70, 0);
+        visitor.testSetSouvenirRoll(0.99);
+        helper.getLevel().addFreshEntity(visitor);
+        visitor.testSetPhase(VisitorPhase.EXPLORING);
+        return visitor;
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1600, batch = "config")
+    public static void aOnePlaceCounterServesTwoVisitorsInTurn(GameTestHelper helper) {
+        int original = ZooConfig.COUNTER_CAPACITY.get();
+        ZooConfig.COUNTER_CAPACITY.set(1);
+        Scene s = scene(helper, Items.BREAD, 5, 10, 70);
+        Visitor second = extraHungryVisitor(helper, s, START.offset(0, 0, 2));
+        UUID shop = s.zoo().shops().getFirst().id();
+        int[] most = {0};
+        helper.onEachTick(() -> most[0] = Math.max(most[0], FacilityOccupancy.count(shop, helper.getLevel().getGameTime())));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(TestShops.count(helper, CHEST, Items.BREAD) == 3, "both should have bought one bread");
+            helper.assertTrue(most[0] == 1, "the one-place counter held " + most[0]);
+            ZooConfig.COUNTER_CAPACITY.set(original);
+            second.discard();
+            finish(helper, s);
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1200)
+    public static void aFullCounterMakesTheVisitorComplainAboutTheQueue(GameTestHelper helper) {
+        Scene s = scene(helper, Items.BREAD, 5, 10, 70);
+        UUID shop = s.zoo().shops().getFirst().id();
+        UUID a = UUID.randomUUID(), b = UUID.randomUUID();
+        helper.onEachTick(() -> {
+            long now = helper.getLevel().getGameTime();
+            FacilityOccupancy.tryOccupy(shop, a, now, 2);
+            FacilityOccupancy.tryOccupy(shop, b, now, 2);
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(tally(s.zoo(), CommentType.SHOP_QUEUE) >= 1, "no queue complaint yet");
+            helper.assertTrue(TestShops.count(helper, CHEST, Items.BREAD) == 5, "bought through a full counter");
+            helper.assertTrue(s.zoo().reports().subjectsToday().containsKey("shop_queue|" + shop), "complaint doesn't name the shop");
+            finish(helper, s);
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1600)
+    public static void aVisitorWaitingTooLongTriesAnotherShop(GameTestHelper helper) {
+        // Shop A (COUNTER) is kept full; shop B to the south-east also sells bread. The visitor ends up buying at B.
+        Scene s = scene(helper, Items.BREAD, 5, 10, 70);
+        BlockPos counterB = new BlockPos(40, 2, 30), chestB = new BlockPos(41, 2, 30);
+        TestShops.assertOk(helper, s.zoos().createShop(s.owner(), helper.getLevel(), helper.absolutePos(counterB)));
+        TestShops.placeChest(helper, chestB, Items.BREAD, 5);
+        TestShops.assertOk(helper, s.zoos().linkContainer(s.owner(), helper.getLevel(), helper.absolutePos(chestB)));
+        FacilityCensus.refresh(s.zoo(), helper.getLevel());
+        UUID shopA = s.zoo().shops().getFirst().id();
+        UUID a = UUID.randomUUID(), b = UUID.randomUUID();
+        helper.onEachTick(() -> {
+            long now = helper.getLevel().getGameTime();
+            FacilityOccupancy.tryOccupy(shopA, a, now, 2);
+            FacilityOccupancy.tryOccupy(shopA, b, now, 2);
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(TestShops.count(helper, chestB, Items.BREAD) == 4, "didn't buy at the other shop");
+            helper.assertTrue(TestShops.count(helper, CHEST, Items.BREAD) == 5, "bought through a full counter");
+            finish(helper, s);
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 400)
+    public static void removingAVisitorFreesItsCounterPlace(GameTestHelper helper) {
+        Scene s = scene(helper, Items.BREAD, 5, 10, 70);
+        UUID shop = s.zoo().shops().getFirst().id();
+        helper.runAfterDelay(3, () -> {
+            long now = helper.getLevel().getGameTime();
+            helper.assertTrue(FacilityOccupancy.tryOccupy(shop, s.visitor().getUUID(), now, 2), "claim refused");
+            s.visitor().discard();
+        });
+        helper.runAfterDelay(5, () -> {
+            helper.assertTrue(FacilityOccupancy.count(shop, helper.getLevel().getGameTime()) == 0, "place still held after removal");
+            TestZoos.cleanUp(helper, s.owner(), s.zoo());
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 800)
+    public static void aShopDeletedUnderAWaitingVisitorIsGivenUp(GameTestHelper helper) {
+        Scene s = scene(helper, Items.BREAD, 5, 10, 70);
+        UUID shop = s.zoo().shops().getFirst().id();
+        UUID a = UUID.randomUUID(), b = UUID.randomUUID();
+        helper.onEachTick(() -> {
+            long now = helper.getLevel().getGameTime();
+            if (s.zoo().shop(shop).isPresent()) {
+                FacilityOccupancy.tryOccupy(shop, a, now, 2);
+                FacilityOccupancy.tryOccupy(shop, b, now, 2);
+            }
+        });
+        helper.runAfterDelay(200, () -> TestShops.assertOk(helper, s.zoos().removeShop(s.owner(), helper.getLevel(), helper.absolutePos(COUNTER))));
+        helper.runAfterDelay(400, () -> {
+            helper.assertTrue(s.visitor().errands().current() != Errand.FOOD, "still waiting for a deleted shop");
+            finish(helper, s);
+        });
     }
 }

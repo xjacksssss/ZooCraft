@@ -407,6 +407,17 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
         discard();
     }
 
+    @Override
+    public void remove(RemovalReason reason) {
+        releaseClaims();
+        super.remove(reason);
+    }
+
+    /** Frees every counter, toilet, viewing-spot and gate place this visitor holds. */
+    void releaseClaims() {
+        errands.releaseClaims();
+    }
+
     // ------------------------------------------------------------------ test hooks (GameTests only)
 
     public void testSetBudget(VisitorProfile profile, int budget, double personalFactor) {

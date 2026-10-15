@@ -48,6 +48,8 @@ final class AdviceBuilder {
             switch (kind) {
                 case "cant_reach_shop" -> shop(zoo, subject).ifPresent(shop ->
                         add(issues, text, kind, count, Component.translatable("zoocraft.advice.cant_reach_shop", shop.name())));
+                case "shop_queue" -> shop(zoo, subject).ifPresent(shop ->
+                        add(issues, text, kind, count, Component.translatable("zoocraft.advice.shop_queue", shop.name())));
                 case "toilet_queue", "cant_reach_toilet" -> toilet(zoo, subject).ifPresent(toilet ->
                         add(issues, text, kind, count, Component.translatable("zoocraft.advice." + kind, toilet.pos().getX(), toilet.pos().getZ())));
                 case "rubbish_everywhere" -> {

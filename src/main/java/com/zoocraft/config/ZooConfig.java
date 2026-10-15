@@ -24,6 +24,7 @@ public final class ZooConfig {
     public static final ModConfigSpec.IntValue DEFAULT_FOOD_PRICE;
     public static final ModConfigSpec.IntValue DEFAULT_DRINK_PRICE;
     public static final ModConfigSpec.IntValue DEFAULT_SOUVENIR_PRICE;
+    public static final ModConfigSpec.IntValue COUNTER_CAPACITY;
     public static final ModConfigSpec.IntValue BIN_CAPACITY;
     public static final ModConfigSpec.IntValue BIN_SEARCH_RADIUS;
     public static final ModConfigSpec.DoubleValue LITTER_CHANCE_WITHOUT_BIN;
@@ -87,6 +88,8 @@ public final class ZooConfig {
                 .defineInRange("defaultDrinkPrice", 1, 1, 999);
         DEFAULT_SOUVENIR_PRICE = b.comment("Starting price, in emeralds, for souvenirs when they first appear in a shop.")
                 .defineInRange("defaultSouvenirPrice", 3, 1, 999);
+        COUNTER_CAPACITY = b.comment("How many visitors one shop counter serves at once. The others wait nearby.")
+                .defineInRange("counterCapacity", 2, 1, 32);
         b.pop();
 
         b.push("needs");
