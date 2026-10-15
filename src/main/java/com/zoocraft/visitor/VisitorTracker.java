@@ -91,6 +91,7 @@ public final class VisitorTracker {
     }
 
     private static void onBoundaryChanged(Zoo zoo) {
+        GateQueues.forget(zoo);
         for (Visitor visitor : visitors(zoo.id())) {
             visitor.controller().onZooChanged();
             if (visitor.phase() == VisitorPhase.EXPLORING || visitor.phase() == VisitorPhase.LEAVING) {
@@ -102,6 +103,7 @@ public final class VisitorTracker {
     }
 
     private static void onZooChanged(Zoo zoo) {
+        GateQueues.forget(zoo);
         for (Visitor visitor : visitors(zoo.id())) {
             visitor.controller().onZooChanged();
         }

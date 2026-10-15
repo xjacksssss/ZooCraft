@@ -1,6 +1,7 @@
 package com.zoocraft.visitor;
 
 import com.zoocraft.config.ZooConfig;
+import com.zoocraft.core.crowd.GateChoice;
 import com.zoocraft.core.needs.Errand;
 import com.zoocraft.core.visitor.StepRates;
 import com.zoocraft.feedback.CommentType;
@@ -57,6 +58,9 @@ public final class VisitorController {
     private @Nullable UUID exitGateId;
     private final Set<UUID> triedExitGates = new HashSet<>();
     private boolean saidClosed;
+    // Gate queue (Phase 3 spec section 7.3).
+    private @Nullable BlockPos queueSlot;
+    private long overflowSince;
 
     VisitorController(Visitor visitor) {
         this.visitor = visitor;
@@ -158,11 +162,25 @@ public final class VisitorController {
             setPhase(VisitorPhase.REFUSED);
             return;
         }
-        BlockPos queueSpot = gate.get().outside();
+        queueSlot = GateQueues.claim(level, zoo, gate.get(), visitor.getUUID(), leaderSlot(), now).orElse(null);
+        BlockPos queueSpot = queueSlot != null ? queueSlot : GateQueues.overflow(level, zoo, gate.get());
         if (closeTo(queueSpot, 2.0)) {
-            setPhase(VisitorPhase.QUEUEING);
+            if (queueSlot != null) {
+                setPhase(VisitorPhase.QUEUEING);
+                return;
+            }
+            // Waiting beyond a full queue isn't a failure to reach the gate. After a while, queue from here.
+            if (overflowSince == 0) {
+                overflowSince = now;
+            }
+            target = null;
+            BrainUtils.clearMemory(visitor, MemoryModuleType.WALK_TARGET);
+            if (now - overflowSince > QUEUE_WAIT_TICKS * 2) {
+                setPhase(VisitorPhase.QUEUEING);
+            }
             return;
         }
+        overflowSince = 0;
         if (walkTowards(queueSpot, now)) {
             // Could not get to this gate from outside: try another one.
             ZooManager.get(level.getServer()).markGateBlocked(zoo, gate.get());
@@ -194,6 +212,9 @@ public final class VisitorController {
         if (visitor.admitted) {
             enterZoo(zoo);
             return;
+        }
+        if (queueSlot != null && visitor.gateId != null) {
+            zoo.gate(visitor.gateId).ifPresent(g -> GateQueues.claim(level, zoo, g, visitor.getUUID(), null, now));
         }
         List<Visitor> group = groupMembers();
         Visitor leader = group.stream().filter(Visitor::isLeader).findFirst().orElse(null);
@@ -342,7 +363,21 @@ public final class VisitorController {
             candidates.addAll(zoo.gates().stream().filter(g -> zoo.gateStatus(g, now) != com.zoocraft.zoo.GateStatus.DETACHED).toList());
         }
         candidates.removeIf(g -> triedExitGates.contains(g.id()));
-        return candidates.stream().min(Comparator.comparingDouble(g -> g.pos().distSqr(visitor.blockPosition()))).orElse(null);
+        // The nearest gate, each gate's weight halving for every 8 visitors already heading to it (spec 7.3).
+        double[] distances = new double[candidates.size()];
+        int[] heading = new int[candidates.size()];
+        List<Visitor> others = VisitorTracker.visitors(zoo.id());
+        for (int i = 0; i < candidates.size(); i++) {
+            Gate gate = candidates.get(i);
+            distances[i] = Math.sqrt(gate.pos().distSqr(visitor.blockPosition()));
+            for (Visitor other : others) {
+                if (other != visitor && other.phase == VisitorPhase.LEAVING && gate.id().equals(other.controller.exitGateId)) {
+                    heading[i]++;
+                }
+            }
+        }
+        int index = GateChoice.pick(distances, heading);
+        return index < 0 ? null : candidates.get(index);
     }
 
     private void stepWalkAway(ServerLevel level, @Nullable Zoo zoo, long now) {
@@ -392,6 +427,11 @@ public final class VisitorController {
         visitor.phase = phase;
         exitGateId = null;
         triedExitGates.clear();
+        overflowSince = 0;
+        if (phase != VisitorPhase.QUEUEING) {
+            GateQueues.release(visitor.getUUID());
+            queueSlot = null;
+        }
         onPhaseChanged();
     }
 
@@ -483,6 +523,29 @@ public final class VisitorController {
     }
 
     // Exposed for tests and debugging.
+    /** The group leader's queue slot, so the group queues side by side; null for leaders and lone visitors. */
+    private @Nullable BlockPos leaderSlot() {
+        if (visitor.leader) {
+            return null;
+        }
+        for (Visitor member : groupMembers()) {
+            if (member != visitor && member.leader) {
+                return member.controller.queueSlot;
+            }
+        }
+        return null;
+    }
+
+    /** The gate queue slot this visitor holds, if any. */
+    public @Nullable BlockPos queueSlot() {
+        return queueSlot;
+    }
+
+    /** The gate this visitor is leaving by, if it has chosen one. */
+    public @Nullable UUID exitGateId() {
+        return exitGateId;
+    }
+
     public @Nullable BlockPos target() {
         return target;
     }

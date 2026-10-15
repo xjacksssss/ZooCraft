@@ -169,4 +169,63 @@ public final class VisitorGameTests {
             TestZoos.cleanUp(helper, owner, zoo);
         });
     }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1200)
+    public static void aGroupOfFourQueuesOnSeparateSlots(GameTestHelper helper) {
+        Setup setup = openZoo(helper, 0);
+        UUID group = UUID.randomUUID();
+        Visitor[] members = new Visitor[4];
+        for (int i = 0; i < 4; i++) {
+            members[i] = visitor(helper, setup, group, i == 0, 4, 20 + i * 2, 10);
+        }
+        java.util.Map<Visitor, BlockPos> slots = new java.util.HashMap<>();
+        helper.onEachTick(() -> {
+            for (Visitor v : members) {
+                BlockPos slot = v.controller().queueSlot();
+                if (slot != null) {
+                    slots.put(v, slot);
+                }
+            }
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(java.util.Arrays.stream(members).allMatch(v -> v.phase() == VisitorPhase.EXPLORING), "not all admitted yet");
+            helper.assertTrue(slots.size() == 4 && new java.util.HashSet<>(slots.values()).size() == 4, "slots shared: " + slots.values());
+            helper.assertTrue(java.util.Arrays.stream(members).allMatch(v -> v.controller().queueSlot() == null), "slots kept after entering");
+            for (Visitor v : members) {
+                v.discard();
+            }
+            TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 2400)
+    public static void closingSendsVisitorsToBothGates(GameTestHelper helper) {
+        // Two gates on the west edge, 20 blocks apart; all 30 visitors start near the northern one.
+        ServerPlayer owner = TestZoos.player(helper, "Owner");
+        Zoo zoo = TestZoos.create(helper, owner, "Exits", TestZoos.rectangle(helper, 16, 4, 44, 44));
+        ZooManager zoos = TestZoos.manager(helper);
+        TestShops.assertOk(helper, zoos.addGate(owner, helper.getLevel(), helper.absolutePos(new BlockPos(16, 2, 12))));
+        TestShops.assertOk(helper, zoos.addGate(owner, helper.getLevel(), helper.absolutePos(new BlockPos(16, 2, 32))));
+        zoos.setPrice(owner, zoo, 0);
+        zoos.setOpen(owner, zoo, true);
+        Setup setup = new Setup(owner, zoo, zoo.gates().getFirst());
+        List<Visitor> visitors = new java.util.ArrayList<>();
+        for (int i = 0; i < 30; i++) {
+            Visitor v = visitor(helper, setup, UUID.randomUUID(), true, 20 + i % 6, 8 + i / 6, 10);
+            v.testSetPhase(VisitorPhase.EXPLORING);
+            visitors.add(v);
+        }
+        java.util.Set<UUID> gatesUsed = new java.util.HashSet<>();
+        helper.runAfterDelay(20, () -> zoos.setOpen(owner, zoo, false));
+        helper.onEachTick(() -> visitors.forEach(v -> {
+            if (v.controller().exitGateId() != null) {
+                gatesUsed.add(v.controller().exitGateId());
+            }
+        }));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(visitors.stream().allMatch(Visitor::isRemoved), "visitors still inside");
+            helper.assertTrue(gatesUsed.size() == 2, "only one gate used");
+            TestZoos.cleanUp(helper, owner, zoo);
+        });
+    }
 }

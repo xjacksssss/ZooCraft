@@ -416,6 +416,7 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
     /** Frees every counter, toilet, viewing-spot and gate place this visitor holds. */
     void releaseClaims() {
         errands.releaseClaims();
+        GateQueues.release(getUUID());
     }
 
     // ------------------------------------------------------------------ test hooks (GameTests only)
