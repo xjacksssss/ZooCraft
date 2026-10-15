@@ -78,6 +78,7 @@ public final class PerfReport {
         }
         lines.add(Component.literal(stuck.isEmpty() ? stuckLine.toString() : stuckLine.append(")").toString()));
         lines.add(Component.literal("Most visitors heading for one spot: " + mostOnOneTarget(visitors)));
+        lines.add(missedLine(server, zoo));
 
         List<Exhibit> exhibits = AnimalCensus.cached(zoo).exhibits();
         if (exhibits.isEmpty()) {
@@ -134,6 +135,25 @@ public final class PerfReport {
                     ms(t.averageNanos(slot.ordinal())), ms(t.worstNanos(slot.ordinal())), t.calls(slot.ordinal()))));
         }
         return lines;
+    }
+
+    /** Where this zoo's visitors' path plans most often fall short, with what the target stands on. */
+    private static Component missedLine(MinecraftServer server, Zoo zoo) {
+        net.minecraft.server.level.ServerLevel level = server.getLevel(zoo.dimension());
+        List<String> parts = new ArrayList<>();
+        for (MissedTargets.Missed m : MissedTargets.top(200)) {
+            if (parts.size() == 5) {
+                break;
+            }
+            if (level != null && zoo.contains(m.pos())) {
+                String below = level.isLoaded(m.pos()) ? net.minecraft.core.registries.BuiltInRegistries.BLOCK
+                        .getKey(level.getBlockState(m.pos().below()).getBlock()).getPath() : "unloaded";
+                String at = level.isLoaded(m.pos()) ? net.minecraft.core.registries.BuiltInRegistries.BLOCK
+                        .getKey(level.getBlockState(m.pos()).getBlock()).getPath() : "unloaded";
+                parts.add(m.pos().toShortString() + " (" + at + " on " + below + ") x" + m.count());
+            }
+        }
+        return Component.literal("Most missed path targets: " + (parts.isEmpty() ? "none" : String.join("; ", parts)));
     }
 
     private static Component planLine(TimerSlots t) {

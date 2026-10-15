@@ -2,6 +2,7 @@ package com.zoocraft.visitor;
 
 import com.zoocraft.config.ZooConfig;
 import com.zoocraft.core.perf.PerfSlot;
+import com.zoocraft.perf.MissedTargets;
 import com.zoocraft.perf.SimulationTimers;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Mob;
@@ -56,6 +57,7 @@ public class VisitorNavigation extends SmoothGroundNavigation {
             SimulationTimers.stop(PerfSlot.VISITOR_PATHFINDING, zooId(), timer);
             if (!targets.isEmpty() && (result == null || !result.canReach())) {
                 SimulationTimers.count(PerfSlot.VISITOR_PATH_SHORT, zooId());
+                MissedTargets.record(targets.iterator().next());
             }
         }
     }

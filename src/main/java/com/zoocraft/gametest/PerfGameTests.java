@@ -6,6 +6,7 @@ import com.zoocraft.config.ZooConfig;
 import com.zoocraft.core.perf.PerfSlot;
 import com.zoocraft.core.perf.TimerSlots;
 import com.zoocraft.core.visitor.VisitorProfile;
+import com.zoocraft.perf.MissedTargets;
 import com.zoocraft.perf.PerfLog;
 import com.zoocraft.perf.PerfReport;
 import com.zoocraft.perf.SimulationTimers;
@@ -157,21 +158,23 @@ public final class PerfGameTests {
         Visitor visitor = exploringVisitor(helper, setup, 30, 24);
         visitor.testSetNeeds(0, 0);
         int original = ZooConfig.VISITOR_STEP_TICKS.get();
+        double[] before = new double[1];
+        // Scheduled up front: adding a delayed task from inside one can break the GameTest scheduler's iteration.
         helper.runAfterDelay(100, () -> {
-            double before = visitor.needs().hunger();
+            before[0] = visitor.needs().hunger();
             ZooConfig.VISITOR_STEP_TICKS.set(3);
-            helper.runAfterDelay(100, () -> {
-                double after = visitor.needs().hunger();
-                ZooConfig.VISITOR_STEP_TICKS.set(original);
-                // 5 seconds at either step: the rise must be about the same (needs rise 0.14 to 0.25 per second).
-                double first = before;
-                double second = after - before;
-                helper.assertTrue(first > 0.4 && second > 0.4, "needs didn't rise: " + first + ", " + second);
-                helper.assertTrue(Math.abs(first - second) < 0.35, "rate changed with the step: " + first + " then " + second);
-                visitor.discard();
-                TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
-                helper.succeed();
-            });
+        });
+        helper.runAfterDelay(200, () -> {
+            double after = visitor.needs().hunger();
+            ZooConfig.VISITOR_STEP_TICKS.set(original);
+            // 5 seconds at either step: the rise must be about the same (needs rise 0.14 to 0.25 per second).
+            double first = before[0];
+            double second = after - before[0];
+            helper.assertTrue(first > 0.4 && second > 0.4, "needs didn't rise: " + first + ", " + second);
+            helper.assertTrue(Math.abs(first - second) < 0.35, "rate changed with the step: " + first + " then " + second);
+            visitor.discard();
+            TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
+            helper.succeed();
         });
     }
 
@@ -181,23 +184,26 @@ public final class PerfGameTests {
         BlockPos from = helper.absolutePos(new BlockPos(2, 2, 2));
         visitor.moveTo(from.getX() + 0.5, from.getY(), from.getZ() + 0.5, 0, 0);
         helper.getLevel().addFreshEntity(visitor);
+        long[] counts = new long[2];
+        boolean[] reached = new boolean[1];
         helper.runAfterDelay(2, () -> {
-            long plans = SimulationTimers.global().calls(PerfSlot.VISITOR_PATHFINDING.ordinal(), 1000);
-            long shortOnes = SimulationTimers.global().calls(PerfSlot.VISITOR_PATH_SHORT.ordinal(), 1000);
+            counts[0] = SimulationTimers.global().calls(PerfSlot.VISITOR_PATHFINDING.ordinal(), 1000);
+            counts[1] = SimulationTimers.global().calls(PerfSlot.VISITOR_PATH_SHORT.ordinal(), 1000);
             PathNavigation nav = visitor.getNavigation();
             BlockPos target = helper.absolutePos(new BlockPos(20, 2, 2));
             net.minecraft.world.level.pathfinder.Path first = nav.createPath(target, 0);
+            reached[0] = first != null && first.canReach();
             nav.moveTo(first, 0.6);
             nav.createPath(target, 0); // same target, path not done: reused, not a plan
-            helper.runAfterDelay(1, () -> {
-                long newPlans = SimulationTimers.global().calls(PerfSlot.VISITOR_PATHFINDING.ordinal(), 1000) - plans;
-                long newShort = SimulationTimers.global().calls(PerfSlot.VISITOR_PATH_SHORT.ordinal(), 1000) - shortOnes;
-                helper.assertTrue(first != null && first.canReach(), "the 18-block path should reach");
-                helper.assertTrue(newPlans >= 1, "the plan wasn't counted");
-                helper.assertTrue(newShort == 0 || newPlans > newShort, "a reachable plan was counted as short");
-                visitor.discard();
-                helper.succeed();
-            });
+        });
+        helper.runAfterDelay(3, () -> {
+            long newPlans = SimulationTimers.global().calls(PerfSlot.VISITOR_PATHFINDING.ordinal(), 1000) - counts[0];
+            long newShort = SimulationTimers.global().calls(PerfSlot.VISITOR_PATH_SHORT.ordinal(), 1000) - counts[1];
+            helper.assertTrue(reached[0], "the 18-block path should reach");
+            helper.assertTrue(newPlans >= 1, "the plan wasn't counted");
+            helper.assertTrue(newShort == 0 || newPlans > newShort, "a reachable plan was counted as short");
+            visitor.discard();
+            helper.succeed();
         });
     }
 
@@ -250,41 +256,51 @@ public final class PerfGameTests {
 
     @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1200)
     public static void throttledShortcutsWalkAsFastAsEveryTick(GameTestHelper helper) {
-        long[] arrival = new long[3];
         ShortcutMode[] modes = {ShortcutMode.EVERY_TICK, ShortcutMode.EVERY_NODE, ShortcutMode.OFF};
         ShortcutMode original = ZooConfig.PATH_SHORTCUT_MODE.get();
-        walkInMode(helper, modes, 0, arrival, original);
-        helper.runAfterDelay(1100, () -> {
-            ZooConfig.PATH_SHORTCUT_MODE.set(original);
-            helper.fail("walks unfinished: arrival ticks " + java.util.Arrays.toString(arrival) + ", walkers "
-                    + helper.getLevel().getEntitiesOfClass(Visitor.class, new net.minecraft.world.phys.AABB(helper.absolutePos(BlockPos.ZERO)).inflate(60))
-                    .stream().map(v -> helper.relativePos(v.blockPosition()) + " nav done " + v.getNavigation().isDone()).toList());
-        });
-    }
-
-    private static void walkInMode(GameTestHelper helper, ShortcutMode[] modes, int i, long[] arrival, ShortcutMode original) {
-        if (i == modes.length) {
-            ZooConfig.PATH_SHORTCUT_MODE.set(original);
-            helper.assertTrue(arrival[1] <= arrival[0] * 1.1 + 5, "EVERY_NODE took " + arrival[1] + " ticks, EVERY_TICK " + arrival[0]);
-            helper.assertTrue(arrival[2] > 0, "OFF never arrived");
-            helper.succeed();
-            return;
-        }
-        ZooConfig.PATH_SHORTCUT_MODE.set(modes[i]);
-        Visitor visitor = ZooEntities.VISITOR.get().create(helper.getLevel());
-        BlockPos from = helper.absolutePos(new BlockPos(4, 2, 4 + i * 12));
-        BlockPos to = helper.absolutePos(new BlockPos(34, 2, 4 + i * 12));
-        visitor.moveTo(from.getX() + 0.5, from.getY(), from.getZ() + 0.5, 0, 0);
-        helper.getLevel().addFreshEntity(visitor);
-        long start = helper.getTick();
-        // Ground navigation only plans once the visitor stands on the ground.
-        helper.runAfterDelay(3, () -> helper.assertTrue(visitor.getNavigation().moveTo(to.getX() + 0.5, to.getY(), to.getZ() + 0.5, 0.6),
-                "no path in mode " + modes[i]));
+        long[] arrival = new long[modes.length];
+        // One per-tick state machine, registered once: scheduling tasks from inside scheduled tasks can break the
+        // GameTest scheduler's iteration.
+        int[] walk = {-1};
+        long[] started = new long[1];
+        Visitor[] walker = new Visitor[1];
+        BlockPos[] goal = new BlockPos[1];
         helper.onEachTick(() -> {
-            if (arrival[i] == 0 && visitor.blockPosition().distSqr(to) <= 4) {
-                arrival[i] = helper.getTick() - start;
-                visitor.discard();
-                walkInMode(helper, modes, i + 1, arrival, original);
+            if (walk[0] >= modes.length) {
+                return;
+            }
+            long now = helper.getTick();
+            if (walk[0] < 0 || (walker[0] != null && walker[0].blockPosition().distSqr(goal[0]) <= 4)) {
+                if (walk[0] >= 0) {
+                    arrival[walk[0]] = now - started[0];
+                    walker[0].discard();
+                }
+                walk[0]++;
+                if (walk[0] == modes.length) {
+                    ZooConfig.PATH_SHORTCUT_MODE.set(original);
+                    helper.assertTrue(arrival[1] <= arrival[0] * 1.1 + 5, "EVERY_NODE took " + arrival[1] + " ticks, EVERY_TICK " + arrival[0]);
+                    helper.assertTrue(arrival[2] > 0, "OFF never arrived");
+                    helper.succeed();
+                    return;
+                }
+                ZooConfig.PATH_SHORTCUT_MODE.set(modes[walk[0]]);
+                Visitor visitor = ZooEntities.VISITOR.get().create(helper.getLevel());
+                BlockPos from = helper.absolutePos(new BlockPos(4, 2, 4 + walk[0] * 12));
+                goal[0] = helper.absolutePos(new BlockPos(34, 2, 4 + walk[0] * 12));
+                visitor.moveTo(from.getX() + 0.5, from.getY(), from.getZ() + 0.5, 0, 0);
+                helper.getLevel().addFreshEntity(visitor);
+                walker[0] = visitor;
+                started[0] = now;
+                return;
+            }
+            // Ground navigation only plans once the visitor stands on the ground.
+            if (now - started[0] == 3) {
+                helper.assertTrue(walker[0].getNavigation().moveTo(goal[0].getX() + 0.5, goal[0].getY(), goal[0].getZ() + 0.5, 0.6),
+                        "no path in mode " + modes[walk[0]]);
+            }
+            if (now - started[0] > 350) {
+                ZooConfig.PATH_SHORTCUT_MODE.set(original);
+                helper.fail("mode " + modes[walk[0]] + " didn't arrive; arrivals so far " + java.util.Arrays.toString(arrival));
             }
         });
     }
@@ -298,21 +314,60 @@ public final class PerfGameTests {
         visitor.moveTo(from.getX() + 0.5, from.getY(), from.getZ() + 0.5, 0, 0);
         helper.getLevel().addFreshEntity(visitor);
         VisitorNavigation nav = (VisitorNavigation) visitor.getNavigation();
+        int[] before = new int[1];
+        helper.runAfterDelay(3, () -> nav.moveTo(nav.createPath(helper.absolutePos(new BlockPos(40, 2, 4)), 0), 0.6));
+        helper.runAfterDelay(8, () -> {
+            before[0] = nav.shortcutAttempts();
+            nav.moveTo(nav.createPath(helper.absolutePos(new BlockPos(4, 2, 40)), 0), 0.6); // a different path
+        });
+        helper.runAfterDelay(9, () -> {
+            helper.assertTrue(nav.shortcutAttempts() > before[0], "no shortcut attempt on the new path");
+            nav.stop();
+            // A finished path must not throw.
+            nav.attemptShortcut(0, visitor.position());
+            ZooConfig.PATH_SHORTCUT_MODE.set(original);
+            visitor.discard();
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 400)
+    public static void arrivedVisitorsStopPlanning(GameTestHelper helper) {
+        // An empty zoo: the visitor wanders between random spots and lingers at each. While lingering it should not
+        // keep planning paths to the exact block it already stands beside.
+        Setup setup = openZoo(helper, "Linger");
+        Visitor visitor = exploringVisitor(helper, setup, 30, 24);
+        helper.runAfterDelay(300, () -> {
+            long plans = SimulationTimers.forZoo(setup.zoo().id()).map(t -> t.calls(PerfSlot.VISITOR_PATHFINDING.ordinal())).orElse(0L);
+            helper.assertTrue(plans <= 12, plans + " path plans in 15 seconds for one wandering visitor");
+            visitor.discard();
+            TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 100)
+    public static void missedPathTargetsAreListed(GameTestHelper helper) {
+        // A target walled in on all sides can't be reached.
+        BlockPos inside = new BlockPos(20, 2, 20);
+        for (int dx = -1; dx <= 1; dx++) {
+            for (int dz = -1; dz <= 1; dz++) {
+                if (dx != 0 || dz != 0) {
+                    helper.setBlock(inside.offset(dx, 0, dz), net.minecraft.world.level.block.Blocks.STONE);
+                    helper.setBlock(inside.offset(dx, 1, dz), net.minecraft.world.level.block.Blocks.STONE);
+                }
+            }
+        }
+        Visitor visitor = ZooEntities.VISITOR.get().create(helper.getLevel());
+        BlockPos from = helper.absolutePos(new BlockPos(4, 2, 4));
+        visitor.moveTo(from.getX() + 0.5, from.getY(), from.getZ() + 0.5, 0, 0);
+        helper.getLevel().addFreshEntity(visitor);
         helper.runAfterDelay(3, () -> {
-            nav.moveTo(nav.createPath(helper.absolutePos(new BlockPos(40, 2, 4)), 0), 0.6);
-            helper.runAfterDelay(5, () -> {
-                int before = nav.shortcutAttempts();
-                nav.moveTo(nav.createPath(helper.absolutePos(new BlockPos(4, 2, 40)), 0), 0.6); // a different path
-                helper.runAfterDelay(1, () -> {
-                    helper.assertTrue(nav.shortcutAttempts() > before, "no shortcut attempt on the new path");
-                    nav.stop();
-                    // A finished path must not throw.
-                    nav.attemptShortcut(0, visitor.position());
-                    ZooConfig.PATH_SHORTCUT_MODE.set(original);
-                    visitor.discard();
-                    helper.succeed();
-                });
-            });
+            BlockPos target = helper.absolutePos(inside);
+            visitor.getNavigation().createPath(target, 0);
+            helper.assertTrue(MissedTargets.top(50).stream().anyMatch(m -> m.pos().equals(target)), "the walled-in target isn't listed");
+            visitor.discard();
+            helper.succeed();
         });
     }
 
