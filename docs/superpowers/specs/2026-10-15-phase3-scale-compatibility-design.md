@@ -74,6 +74,13 @@ Share of server-thread CPU time (JFR, inclusive):
 - **Large pens can't be viewed.** Viewing spots are sampled 2.5 to 6 blocks from an exhibit's centre (P1 8.3). In any pen wider than about 12 blocks, every sample lands inside the fence. The test park used 8 by 8 pens to avoid this.
 - **The animal search is height-limited:** 48 blocks below and 64 above the boundary corners and gates. The census cost of 0.2% shows there is room to search the full height.
 
+### 3.4 M9 findings (added after M9)
+
+The M9 timers reproduced section 3.2 within 15% and added two things JFR had hidden:
+
+- **Path planning costs about as much as path following.** At 200 visitors in Big Park, visitors start about 54 new paths a second at about 2.6 ms each: 7 ms per tick, against 7.9 ms for path following. JFR put `PathFinder.findPath` at only about 2%, so the time goes on work around the A* search (building its region) or somewhere JFR doesn't sample. M10 measures a single plan in isolation and adds a plan-rate fix (the re-plan gap from section 8.4, brought forward) if planning is still above 3 ms per tick at 200 visitors after section 7.1.
+- **About 8% of visitors are stuck at any moment** at 200 visitors (16 of 200 with no progress for 10 seconds). M10's crowd recovery (section 7.4) is measured against this number.
+
 ## 4. Key decisions
 
 ### 4.1 Fix path following inside ZooCraft, not by forking SmartBrainLib

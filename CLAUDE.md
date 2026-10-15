@@ -19,6 +19,7 @@ Requires JDK 21 (Temurin 21 is installed; the system `JAVA_HOME` is JDK 17, whic
 - `./gradlew runServer` (game dir `run-server`, RCON on 25575, password `zoocraft-dev`) plus `./gradlew runClient -PjoinServer` joins it automatically; `python tools/rcon.py "<command>" ...` scripts the server, `tools/screenshot.ps1` captures the client window, `tools/click.ps1 <x> <y>` (or `-Escape`) clicks in it at screenshot coordinates, and `tools/type.ps1 "/command"` types into chat for single-player worlds such as ATM10 (run with `MSYS_NO_PATHCONV=1` from Git Bash). All take `-Window N` when several clients are open.
 - ATM10 check: `powershell -File tools/sync-atm10-mods.ps1` then `./gradlew runAtm10Client -Patm10` (`-PquickPlay=<save>` opens a world from `run-atm10/saves`). The `-Patm10` flag is required (see docs/compatibility.md).
 - `tools/gametest.sh` runs the GameTests and prints just the summary and failures.
+- Performance: `/zoo debug perf [zoo]` shows ZooCraft's own cost per tick (and `/zoo debug perf log <seconds>` writes `logs/zoocraft-perf.csv`); `/zoo debug recognise [namespace]` lists recognition verdicts with reasons. The harness in `tools/perf/` (see its README) builds the reference parks over RCON and records ramps; results and expectations are in `docs/performance.md`.
 
 ## Code map
 
