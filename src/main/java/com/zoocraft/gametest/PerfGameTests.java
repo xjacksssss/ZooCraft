@@ -11,6 +11,8 @@ import com.zoocraft.perf.PerfReport;
 import com.zoocraft.perf.SimulationTimers;
 import com.zoocraft.registry.ZooEntities;
 import com.zoocraft.visitor.Visitor;
+import com.zoocraft.visitor.ShortcutMode;
+import com.zoocraft.visitor.VisitorNavigation;
 import com.zoocraft.visitor.VisitorPhase;
 import com.zoocraft.zoo.Gate;
 import com.zoocraft.zoo.Zoo;
@@ -243,6 +245,74 @@ public final class PerfGameTests {
             helper.assertTrue(onPath * 2 > path.getNodeCount(), "only " + onPath + " of " + path.getNodeCount() + " nodes on the path");
             visitor.discard();
             helper.succeed();
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1200)
+    public static void throttledShortcutsWalkAsFastAsEveryTick(GameTestHelper helper) {
+        long[] arrival = new long[3];
+        ShortcutMode[] modes = {ShortcutMode.EVERY_TICK, ShortcutMode.EVERY_NODE, ShortcutMode.OFF};
+        ShortcutMode original = ZooConfig.PATH_SHORTCUT_MODE.get();
+        walkInMode(helper, modes, 0, arrival, original);
+        helper.runAfterDelay(1100, () -> {
+            ZooConfig.PATH_SHORTCUT_MODE.set(original);
+            helper.fail("walks unfinished: arrival ticks " + java.util.Arrays.toString(arrival) + ", walkers "
+                    + helper.getLevel().getEntitiesOfClass(Visitor.class, new net.minecraft.world.phys.AABB(helper.absolutePos(BlockPos.ZERO)).inflate(60))
+                    .stream().map(v -> helper.relativePos(v.blockPosition()) + " nav done " + v.getNavigation().isDone()).toList());
+        });
+    }
+
+    private static void walkInMode(GameTestHelper helper, ShortcutMode[] modes, int i, long[] arrival, ShortcutMode original) {
+        if (i == modes.length) {
+            ZooConfig.PATH_SHORTCUT_MODE.set(original);
+            helper.assertTrue(arrival[1] <= arrival[0] * 1.1 + 5, "EVERY_NODE took " + arrival[1] + " ticks, EVERY_TICK " + arrival[0]);
+            helper.assertTrue(arrival[2] > 0, "OFF never arrived");
+            helper.succeed();
+            return;
+        }
+        ZooConfig.PATH_SHORTCUT_MODE.set(modes[i]);
+        Visitor visitor = ZooEntities.VISITOR.get().create(helper.getLevel());
+        BlockPos from = helper.absolutePos(new BlockPos(4, 2, 4 + i * 12));
+        BlockPos to = helper.absolutePos(new BlockPos(34, 2, 4 + i * 12));
+        visitor.moveTo(from.getX() + 0.5, from.getY(), from.getZ() + 0.5, 0, 0);
+        helper.getLevel().addFreshEntity(visitor);
+        long start = helper.getTick();
+        // Ground navigation only plans once the visitor stands on the ground.
+        helper.runAfterDelay(3, () -> helper.assertTrue(visitor.getNavigation().moveTo(to.getX() + 0.5, to.getY(), to.getZ() + 0.5, 0.6),
+                "no path in mode " + modes[i]));
+        helper.onEachTick(() -> {
+            if (arrival[i] == 0 && visitor.blockPosition().distSqr(to) <= 4) {
+                arrival[i] = helper.getTick() - start;
+                visitor.discard();
+                walkInMode(helper, modes, i + 1, arrival, original);
+            }
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 200)
+    public static void aNewPathGetsAShortcutAttemptStraightAway(GameTestHelper helper) {
+        ShortcutMode original = ZooConfig.PATH_SHORTCUT_MODE.get();
+        ZooConfig.PATH_SHORTCUT_MODE.set(ShortcutMode.EVERY_NODE);
+        Visitor visitor = ZooEntities.VISITOR.get().create(helper.getLevel());
+        BlockPos from = helper.absolutePos(new BlockPos(4, 2, 4));
+        visitor.moveTo(from.getX() + 0.5, from.getY(), from.getZ() + 0.5, 0, 0);
+        helper.getLevel().addFreshEntity(visitor);
+        VisitorNavigation nav = (VisitorNavigation) visitor.getNavigation();
+        helper.runAfterDelay(3, () -> {
+            nav.moveTo(nav.createPath(helper.absolutePos(new BlockPos(40, 2, 4)), 0), 0.6);
+            helper.runAfterDelay(5, () -> {
+                int before = nav.shortcutAttempts();
+                nav.moveTo(nav.createPath(helper.absolutePos(new BlockPos(4, 2, 40)), 0), 0.6); // a different path
+                helper.runAfterDelay(1, () -> {
+                    helper.assertTrue(nav.shortcutAttempts() > before, "no shortcut attempt on the new path");
+                    nav.stop();
+                    // A finished path must not throw.
+                    nav.attemptShortcut(0, visitor.position());
+                    ZooConfig.PATH_SHORTCUT_MODE.set(original);
+                    visitor.discard();
+                    helper.succeed();
+                });
+            });
         });
     }
 

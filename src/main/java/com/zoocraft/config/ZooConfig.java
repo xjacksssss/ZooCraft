@@ -42,6 +42,7 @@ public final class ZooConfig {
     public static final ModConfigSpec.IntValue LITTER_CHECK_INTERVAL_TICKS;
     public static final ModConfigSpec.IntValue VISITOR_FOLLOW_RANGE;
     public static final ModConfigSpec.DoubleValue OFF_PATH_COST;
+    public static final ModConfigSpec.EnumValue<com.zoocraft.visitor.ShortcutMode> PATH_SHORTCUT_MODE;
 
     static {
         ModConfigSpec.Builder b = new ModConfigSpec.Builder();
@@ -138,6 +139,8 @@ public final class ZooConfig {
                         "but path searches across open ground get more expensive and fall short sooner. At 0.5 or below visitors",
                         "stop seeking out nearby paths; at 1.0 they can't plan 40 blocks across grass in one search.")
                 .defineInRange("offPathCost", 0.75, 0.0, 2.0);
+        PATH_SHORTCUT_MODE = b.comment("When visitors try to cut corners on their path. EVERY_NODE is much cheaper than EVERY_TICK and looks the same.")
+                .defineEnum("pathShortcutMode", com.zoocraft.visitor.ShortcutMode.EVERY_NODE);
         b.pop();
 
         SPEC = b.build();

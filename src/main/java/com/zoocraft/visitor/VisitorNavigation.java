@@ -8,6 +8,7 @@ import net.minecraft.world.entity.Mob;
 import net.minecraft.world.level.Level;
 import net.minecraft.world.level.pathfinder.Path;
 import net.minecraft.world.level.pathfinder.PathFinder;
+import net.minecraft.world.phys.Vec3;
 import net.tslat.smartbrainlib.api.core.navigation.SmoothGroundNavigation;
 import org.jetbrains.annotations.Nullable;
 
@@ -57,6 +58,36 @@ public class VisitorNavigation extends SmoothGroundNavigation {
                 SimulationTimers.count(PerfSlot.VISITOR_PATH_SHORT, zooId());
             }
         }
+    }
+
+    private @Nullable Path shortcutPath;
+    private int shortcutNode = -1;
+    private int shortcutAttempts;
+
+    /**
+     * SmartBrainLib tries to skip ahead along the path on every tick, tracing the visitor's box through every block
+     * to each later node. The answer only changes when the visitor reaches a new node or gets a new path, so in
+     * {@link ShortcutMode#EVERY_NODE} it only tries then.
+     */
+    @Override
+    public boolean attemptShortcut(int targetNode, Vec3 entityPosition) {
+        ShortcutMode mode = ZooConfig.PATH_SHORTCUT_MODE.get();
+        if (mode == ShortcutMode.OFF || path == null || path.isDone()) {
+            return false;
+        }
+        if (mode == ShortcutMode.EVERY_NODE && path == shortcutPath && path.getNextNodeIndex() == shortcutNode) {
+            return false;
+        }
+        shortcutAttempts++;
+        boolean skipped = super.attemptShortcut(targetNode, entityPosition);
+        shortcutPath = path;
+        shortcutNode = path.getNextNodeIndex();
+        return skipped;
+    }
+
+    /** Real shortcut attempts so far, for tests. */
+    public int shortcutAttempts() {
+        return shortcutAttempts;
     }
 
     private @Nullable UUID zooId() {
