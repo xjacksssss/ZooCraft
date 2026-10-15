@@ -91,6 +91,8 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
     double souvenirRoll = Math.random();
     boolean lastStopDone;
     int spentInShops;
+    /** Compared against the littering chance, so whether a visitor litters is fixed per visitor. */
+    double litterRoll = Math.random();
 
     // Runtime only.
     final VisitorController controller = new VisitorController(this);
@@ -137,6 +139,7 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
         this.personalFactor = VisitorProfile.rollPersonalFactor(random);
         this.needs = Needs.roll(random);
         this.souvenirRoll = random.nextDouble();
+        this.litterRoll = random.nextDouble();
         this.visitStartTime = level().getGameTime();
         this.phase = VisitorPhase.ARRIVING;
         if (level() instanceof ServerLevel serverLevel) {
@@ -378,6 +381,14 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
         this.spentInShops = spentInShops;
     }
 
+    public void testSetLitterRoll(double roll) {
+        this.litterRoll = roll;
+    }
+
+    public void testHoldRubbish() {
+        errands.startCarryingRubbish(level().getGameTime());
+    }
+
     public void testSetInterest(double interest) {
         this.interest = interest;
     }
@@ -481,6 +492,7 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
         visit.putDouble("souvenirRoll", souvenirRoll);
         visit.putBoolean("lastStopDone", lastStopDone);
         visit.putInt("spentInShops", spentInShops);
+        visit.putDouble("litterRoll", litterRoll);
         tag.put("ZooVisit", visit);
         VillagerData.CODEC.encodeStart(net.minecraft.nbt.NbtOps.INSTANCE, getVillagerData()).result().ifPresent(t -> tag.put("VillagerData", t));
     }
@@ -525,6 +537,7 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
         souvenirRoll = visit.contains("souvenirRoll") ? visit.getDouble("souvenirRoll") : getRandom().nextDouble();
         lastStopDone = visit.getBoolean("lastStopDone");
         spentInShops = visit.getInt("spentInShops");
+        litterRoll = visit.contains("litterRoll") ? visit.getDouble("litterRoll") : getRandom().nextDouble();
         // Eating and carrying aren't saved, so a purchase still in hand would never be put away.
         setItemSlot(EquipmentSlot.MAINHAND, net.minecraft.world.item.ItemStack.EMPTY);
         if (tag.contains("VillagerData")) {

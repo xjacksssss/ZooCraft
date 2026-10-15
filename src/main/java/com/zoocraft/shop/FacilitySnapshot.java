@@ -12,8 +12,8 @@ import java.util.UUID;
  * A zoo's facilities as of the last facility census (Phase 2 spec section 4.4). Visitors choose errands from this
  * only; the real stock is checked again at the moment of a sale.
  */
-public record FacilitySnapshot(long takenAt, List<ShopState> shops, List<ToiletState> toilets) {
-    public static final FacilitySnapshot EMPTY = new FacilitySnapshot(-1, List.of(), List.of());
+public record FacilitySnapshot(long takenAt, List<ShopState> shops, List<ToiletState> toilets, List<BinState> bins) {
+    public static final FacilitySnapshot EMPTY = new FacilitySnapshot(-1, List.of(), List.of(), List.of());
 
     /** @param usable open and its counter still inside the boundary */
     public record ShopState(UUID shopId, BlockPos counter, boolean usable, List<Product> products) {
@@ -29,6 +29,22 @@ public record FacilitySnapshot(long takenAt, List<ShopState> shops, List<ToiletS
 
     /** @param usable still inside the boundary */
     public record ToiletState(UUID toiletId, BlockPos pos, boolean usable) {
+    }
+
+    /** A rubbish bin inside the boundary and how full it was. */
+    public record BinState(BlockPos pos, int fill, int capacity) {
+        public boolean usable() {
+            return fill < capacity;
+        }
+
+        /** Bins have no ID of their own; reachability is remembered by position. */
+        public UUID id() {
+            return binId(pos);
+        }
+    }
+
+    public static UUID binId(BlockPos pos) {
+        return UUID.nameUUIDFromBytes(("bin:" + pos.asLong()).getBytes(java.nio.charset.StandardCharsets.UTF_8));
     }
 
     public Optional<ShopState> shop(UUID shopId) {

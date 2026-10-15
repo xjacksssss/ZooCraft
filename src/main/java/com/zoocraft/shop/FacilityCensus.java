@@ -3,7 +3,11 @@ package com.zoocraft.shop;
 import com.zoocraft.ZooCraft;
 import com.zoocraft.config.ZooConfig;
 import com.zoocraft.core.shop.ProductCategory;
+import com.zoocraft.litter.RubbishBinBlockEntity;
+import com.zoocraft.zoo.BoundaryVertex;
 import com.zoocraft.zoo.Shop;
+import net.minecraft.world.level.block.entity.BlockEntity;
+import net.minecraft.world.level.chunk.LevelChunk;
 import com.zoocraft.zoo.Zoo;
 import com.zoocraft.zoo.ZooAlerts;
 import com.zoocraft.zoo.ZooManager;
@@ -46,7 +50,8 @@ public final class FacilityCensus {
         long tick = server.getTickCount();
         for (Zoo zoo : ZooManager.get(server).all()) {
             // Offset from the animal census so the two don't land on the same tick.
-            if ((zoo.shops().isEmpty() && zoo.toilets().isEmpty()) || Math.floorMod(tick + zoo.id().hashCode() * 7L + interval / 2, interval) != 0) {
+            // Every zoo is checked, because bins are found by looking rather than registered.
+            if (Math.floorMod(tick + zoo.id().hashCode() * 7L + interval / 2, interval) != 0) {
                 continue;
             }
             ServerLevel level = server.getLevel(zoo.dimension());
@@ -81,9 +86,36 @@ public final class FacilityCensus {
         }
         List<FacilitySnapshot.ToiletState> toilets = zoo.toilets().stream()
                 .map(t -> new FacilitySnapshot.ToiletState(t.id(), t.pos(), !zoo.isDetached(t.pos()))).toList();
-        FacilitySnapshot snapshot = new FacilitySnapshot(now, List.copyOf(shops), toilets);
+        FacilitySnapshot snapshot = new FacilitySnapshot(now, List.copyOf(shops), toilets, findBins(zoo, level));
         SNAPSHOTS.put(zoo.id(), snapshot);
         return snapshot;
+    }
+
+    /** Bins inside the boundary, from the block entities of the zoo's loaded chunks. Unloaded chunks are skipped. */
+    private static List<FacilitySnapshot.BinState> findBins(Zoo zoo, ServerLevel level) {
+        int minX = Integer.MAX_VALUE, minZ = Integer.MAX_VALUE, maxX = Integer.MIN_VALUE, maxZ = Integer.MIN_VALUE;
+        for (BoundaryVertex v : zoo.boundary()) {
+            minX = Math.min(minX, v.x());
+            maxX = Math.max(maxX, v.x());
+            minZ = Math.min(minZ, v.z());
+            maxZ = Math.max(maxZ, v.z());
+        }
+        List<FacilitySnapshot.BinState> bins = new ArrayList<>();
+        int capacity = RubbishBinBlockEntity.capacity();
+        for (int cx = minX >> 4; cx <= maxX >> 4; cx++) {
+            for (int cz = minZ >> 4; cz <= maxZ >> 4; cz++) {
+                LevelChunk chunk = level.getChunkSource().getChunkNow(cx, cz);
+                if (chunk == null) {
+                    continue;
+                }
+                for (BlockEntity blockEntity : chunk.getBlockEntities().values()) {
+                    if (blockEntity instanceof RubbishBinBlockEntity bin && zoo.contains(bin.getBlockPos())) {
+                        bins.add(new FacilitySnapshot.BinState(bin.getBlockPos().immutable(), bin.fill(), capacity));
+                    }
+                }
+            }
+        }
+        return List.copyOf(bins);
     }
 
     @SubscribeEvent

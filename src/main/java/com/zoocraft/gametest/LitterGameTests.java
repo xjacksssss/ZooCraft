@@ -8,6 +8,11 @@ import com.zoocraft.litter.LitterTracker;
 import com.zoocraft.litter.Littering;
 import com.zoocraft.registry.ZooEntities;
 import com.zoocraft.zoo.Zoo;
+import com.zoocraft.zoo.ZooManager;
+import com.zoocraft.shop.FacilityCensus;
+import com.zoocraft.visitor.Visitor;
+import com.zoocraft.visitor.VisitorPhase;
+import java.util.UUID;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.level.block.Blocks;
 import net.minecraft.world.phys.Vec3;
@@ -41,6 +46,104 @@ public final class LitterGameTests {
 
     private static void clearLitter(Zoo zoo) {
         List.copyOf(LitterTracker.litterIn(zoo)).forEach(LitterEntity::discard);
+    }
+
+    // Visitor scenes use the large floor: zoo x 16..44, gate on the west edge, visitor at START, bin 6 blocks east.
+    private static final BlockPos GATE = new BlockPos(16, 2, 24);
+    private static final BlockPos START = new BlockPos(24, 2, 24);
+    private static final BlockPos NEAR_BIN = new BlockPos(30, 2, 24);
+
+    private record Scene(ServerPlayer owner, Zoo zoo, Visitor visitor) {
+    }
+
+    /** An open zoo with a visitor holding rubbish, kept interested so it doesn't go home during the test. */
+    private static Scene rubbishScene(GameTestHelper helper, double litterRoll, Runnable beforeCensus) {
+        ServerPlayer owner = TestZoos.player(helper, "Owner");
+        ZooManager zoos = TestZoos.manager(helper);
+        Zoo zoo = TestZoos.create(helper, owner, "Rubbish", TestZoos.rectangle(helper, 16, 4, 44, 44));
+        TestShops.assertOk(helper, zoos.addGate(owner, helper.getLevel(), helper.absolutePos(GATE)));
+        zoos.setPrice(owner, zoo, 0);
+        zoos.setOpen(owner, zoo, true);
+        beforeCensus.run();
+        FacilityCensus.refresh(zoo, helper.getLevel());
+        Visitor visitor = ZooEntities.VISITOR.get().create(helper.getLevel());
+        BlockPos start = helper.absolutePos(START);
+        visitor.moveTo(start.getX() + 0.5, start.getY(), start.getZ() + 0.5, 0, 0);
+        visitor.begin(zoo, zoo.gates().getFirst(), UUID.randomUUID(), true);
+        visitor.testSetNeeds(0, 0);
+        visitor.testSetSouvenirRoll(0.99);
+        visitor.testSetLitterRoll(litterRoll);
+        helper.getLevel().addFreshEntity(visitor);
+        visitor.testSetPhase(VisitorPhase.EXPLORING);
+        visitor.testHoldRubbish();
+        helper.onEachTick(() -> visitor.testSetInterest(100));
+        return new Scene(owner, zoo, visitor);
+    }
+
+    private static void finish(GameTestHelper helper, Scene s) {
+        s.visitor().discard();
+        clearLitter(s.zoo());
+        TestZoos.cleanUp(helper, s.owner(), s.zoo());
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1000)
+    public static void visitorPutsRubbishInANearbyBin(GameTestHelper helper) {
+        Scene s = rubbishScene(helper, 0, () -> placeBin(helper, NEAR_BIN));
+        RubbishBinBlockEntity bin = (RubbishBinBlockEntity) helper.getBlockEntity(NEAR_BIN);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(bin.fill() == 1, "bin fill is " + bin.fill());
+            helper.assertTrue(s.visitor().getMainHandItem().isEmpty(), "still holding rubbish");
+            helper.assertTrue(LitterTracker.litterIn(s.zoo()).isEmpty(), "dropped litter next to a bin");
+            finish(helper, s);
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1000)
+    public static void withNoBinRubbishBecomesLitter(GameTestHelper helper) {
+        Scene s = rubbishScene(helper, 0, () -> { });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(LitterTracker.litterIn(s.zoo()).size() == 1, "no litter yet");
+            helper.assertTrue(s.visitor().getMainHandItem().isEmpty(), "still holding rubbish");
+            finish(helper, s);
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1000)
+    public static void someVisitorsTakeTheirRubbishHome(GameTestHelper helper) {
+        Scene s = rubbishScene(helper, 0.99, () -> { });
+        helper.runAfterDelay(800, () -> {
+            helper.assertTrue(LitterTracker.litterIn(s.zoo()).isEmpty(), "a tidy visitor littered");
+            helper.assertTrue(s.visitor().getMainHandItem().isEmpty(), "rubbish never put away");
+            finish(helper, s);
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1000)
+    public static void aFullBinIsNotUsed(GameTestHelper helper) {
+        Scene s = rubbishScene(helper, 0, () -> {
+            RubbishBinBlockEntity bin = placeBin(helper, NEAR_BIN);
+            while (bin.deposit()) {
+                // fill it up
+            }
+        });
+        RubbishBinBlockEntity bin = (RubbishBinBlockEntity) helper.getBlockEntity(NEAR_BIN);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(LitterTracker.litterIn(s.zoo()).size() == 1, "no litter yet");
+            helper.assertTrue(bin.fill() == RubbishBinBlockEntity.capacity(), "a full bin took more");
+            finish(helper, s);
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1000)
+    public static void aBinRemovedOnTheWayIsHandledCalmly(GameTestHelper helper) {
+        Scene s = rubbishScene(helper, 0.99, () -> placeBin(helper, NEAR_BIN));
+        helper.runAfterDelay(15, () -> helper.setBlock(NEAR_BIN, Blocks.AIR));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(s.visitor().getMainHandItem().isEmpty(), "still holding rubbish");
+            helper.assertTrue(s.visitor().isAlive(), "visitor gone");
+            finish(helper, s);
+        });
     }
 
     @GameTest(template = GameTestTemplates.FLOOR)

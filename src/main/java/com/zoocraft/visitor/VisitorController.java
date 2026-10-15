@@ -253,6 +253,7 @@ public final class VisitorController {
         visitor.changeInterest(-INTEREST_DECAY_PER_STEP);
         VisitorExploration.observe(visitor, zoo, now);
         errands.tickHeld(level, now);
+        errands.tickRubbish(zoo, level, now);
         if (endingByChoice && target != null && !errands.active()) {
             // Don't finish the walk to another exhibit; decide how to leave now.
             target = null;

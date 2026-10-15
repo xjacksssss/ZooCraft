@@ -19,6 +19,9 @@ import com.zoocraft.shop.FacilityReach;
 import com.zoocraft.shop.FacilitySnapshot;
 import com.zoocraft.shop.ProductCatalog;
 import com.zoocraft.shop.ToiletOccupancy;
+import com.zoocraft.litter.Littering;
+import com.zoocraft.litter.RubbishBinBlockEntity;
+import com.zoocraft.registry.ZooItems;
 import com.zoocraft.zoo.Shop;
 import com.zoocraft.zoo.Zoo;
 import com.zoocraft.zoo.ZooManager;
@@ -63,6 +66,8 @@ public final class VisitorErrands {
     static final long TOILET_WAIT_TICKS = 20 * 20;
     /** While waiting for a free toilet, check again this often. */
     static final long TOILET_RETRY_TICKS = 40;
+    /** How long a visitor carries rubbish looking for a bin before dropping it or taking it home. */
+    static final long RUBBISH_CARRY_TICKS = 30 * 20;
 
     /** The next thing to do: walk to {@code target}, or leave when the errand is {@link Errand#LEAVE}. */
     record Choice(Errand errand, Optional<BlockPos> target) {
@@ -83,6 +88,11 @@ public final class VisitorErrands {
     private final Set<UUID> triedToilets = new HashSet<>();
     private long usingUntil;
     private long waitingSince;
+
+    // Rubbish left over from eating, and the bin the visitor is taking it to.
+    private long rubbishSince;
+    private int rubbishVariant;
+    private @Nullable BlockPos binPos;
 
     // What the visitor is holding: something to eat or drink, or a souvenir to carry.
     private long holdUntil;
@@ -152,7 +162,7 @@ public final class VisitorErrands {
                 visitor.needs.wants(Need.TOILET, threshold), toiletAvailable(zoo, snapshot, now),
                 now < foodCooldownUntil, now < toiletCooldownUntil, endingByChoice,
                 visitor.budget > 0 && visitor.souvenirRoll < SouvenirRules.chance(visitor.profile, visitor.seenSpecies.size()),
-                anyStocked(zoo, snapshot, SOUVENIRS, now), visitor.lastStopDone, false, false);
+                anyStocked(zoo, snapshot, SOUVENIRS, now), visitor.lastStopDone, holdingRubbish(), nearestBin(zoo, snapshot, now).isPresent());
         for (Need need : VisitPlanner.unmet(input)) {
             visitor.remarkOnce(need == Need.HUNGER ? CommentType.HUNGRY_NO_FOOD : CommentType.NO_TOILET);
         }
@@ -176,6 +186,14 @@ public final class VisitorErrands {
                 }
                 return new Choice(Errand.LEAVE, Optional.empty());
             }
+            case BIN -> {
+                Optional<FacilitySnapshot.BinState> bin = nearestBin(zoo, snapshot, now);
+                if (bin.isPresent()) {
+                    current = Errand.BIN;
+                    binPos = bin.get().pos();
+                    return new Choice(Errand.BIN, Optional.of(binPos));
+                }
+            }
             case TOILET -> {
                 Optional<FacilitySnapshot.ToiletState> toilet = nearestToilet(zoo, snapshot, now);
                 if (toilet.isPresent()) {
@@ -191,6 +209,19 @@ public final class VisitorErrands {
         }
         current = Errand.EXHIBIT;
         return new Choice(Errand.EXHIBIT, VisitorExploration.chooseTarget(visitor, zoo, level));
+    }
+
+    boolean holdingRubbish() {
+        return rubbishSince != 0 && ZooItems.isRubbish(visitor.getMainHandItem());
+    }
+
+    /** The nearest bin with room, within walking distance for rubbish, that visitors have not failed to reach. */
+    private Optional<FacilitySnapshot.BinState> nearestBin(Zoo zoo, FacilitySnapshot snapshot, long now) {
+        double radius = ZooConfig.BIN_SEARCH_RADIUS.get();
+        return snapshot.bins().stream()
+                .filter(b -> b.usable() && !FacilityReach.isUnreachable(zoo, b.id(), now)
+                        && b.pos().distToCenterSqr(visitor.position()) <= radius * radius)
+                .min(java.util.Comparator.comparingDouble(b -> b.pos().distToCenterSqr(visitor.position())));
     }
 
     private boolean toiletAvailable(Zoo zoo, FacilitySnapshot snapshot, long now) {
@@ -295,8 +326,51 @@ public final class VisitorErrands {
         if (current == Errand.TOILET && toiletId != null) {
             return atToilet(zoo, now);
         }
+        if (current == Errand.BIN && binPos != null) {
+            atBin(zoo, level);
+            return 10;
+        }
         current = Errand.EXHIBIT;
         return 0;
+    }
+
+    /** Puts the rubbish in the bin, checking the real bin now. If it has filled up or gone, the rubbish ends up beside it. */
+    private void atBin(Zoo zoo, ServerLevel level) {
+        current = Errand.EXHIBIT;
+        if (level.getBlockEntity(binPos) instanceof RubbishBinBlockEntity bin && bin.deposit()) {
+            FacilityReach.clear(zoo, FacilitySnapshot.binId(binPos));
+            level.playSound(null, binPos, SoundEvents.COMPOSTER_FILL, SoundSource.BLOCKS, 0.6f, 1.0f);
+        } else {
+            Littering.drop(level, zoo, visitor.position(), rubbishVariant);
+        }
+        dropRubbishFromHand();
+    }
+
+    private void dropRubbishFromHand() {
+        visitor.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
+        rubbishSince = 0;
+        binPos = null;
+    }
+
+    /** Called after eating: the visitor is left holding a wrapper, cup or scrap of paper. */
+    void startCarryingRubbish(long now) {
+        rubbishVariant = visitor.getRandom().nextInt(ZooItems.RUBBISH_VARIANTS);
+        visitor.setItemSlot(EquipmentSlot.MAINHAND, new ItemStack(ZooItems.rubbish(rubbishVariant)));
+        rubbishSince = now;
+    }
+
+    /**
+     * Every step while exploring: rubbish carried for too long without finding a bin is dropped (spec 9.2), unless
+     * this visitor is the sort to take it home.
+     */
+    void tickRubbish(Zoo zoo, ServerLevel level, long now) {
+        if (!holdingRubbish() || current == Errand.BIN || now - rubbishSince < RUBBISH_CARRY_TICKS) {
+            return;
+        }
+        if (visitor.litterRoll < ZooConfig.LITTER_CHANCE_WITHOUT_BIN.get()) {
+            Littering.drop(level, zoo, visitor.position(), rubbishVariant);
+        }
+        dropRubbishFromHand();
     }
 
     /** Uses the toilet if there is room, otherwise waits a while, then tries another or complains (spec 8.4). */
@@ -427,6 +501,9 @@ public final class VisitorErrands {
                 toiletCooldownUntil = now + COOLDOWN_TICKS;
                 triedToilets.clear();
             }
+        } else if (errand == Errand.BIN && binPos != null) {
+            FacilityReach.markUnreachable(zoo, FacilitySnapshot.binId(binPos), now + UNREACHABLE_TICKS);
+            binPos = null;
         }
     }
 
@@ -456,13 +533,14 @@ public final class VisitorErrands {
         if (now < holdUntil) {
             return;
         }
+        holdUntil = 0;
         if (eating) {
             visitor.needs.eat(drink);
             visitor.remark(CommentType.TASTY);
+            startCarryingRubbish(now);
         } else {
             visitor.remark(CommentType.SOUVENIR);
+            visitor.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
         }
-        visitor.setItemSlot(EquipmentSlot.MAINHAND, ItemStack.EMPTY);
-        holdUntil = 0;
     }
 }
