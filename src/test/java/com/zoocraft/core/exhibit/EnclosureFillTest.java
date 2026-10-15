@@ -84,4 +84,21 @@ class EnclosureFillTest {
         assertFalse(e.bounded());
         assertEquals(0, e.area());
     }
+
+    @Test
+    void eachRegionIsFilledOnItsOwn() {
+        // Two pens side by side, plus an animal that has escaped onto the open floor outside them.
+        GridFixture g = new GridFixture(
+                "##########",
+                "#...##...#",
+                "#...##...#",
+                "##########");
+        List<Enclosure> regions = EnclosureFill.regions(g, List.of(new int[]{1, 0, 1}, new int[]{2, 0, 2}, new int[]{7, 0, 1},
+                new int[]{20, 0, 20}), 200);
+        assertEquals(3, regions.size(), "the two animals in the first pen share a region");
+        assertTrue(regions.get(0).bounded() && regions.get(0).area() == 6);
+        assertTrue(regions.get(1).bounded() && regions.get(1).area() == 6);
+        assertFalse(regions.get(2).bounded());
+        assertTrue(EnclosureFill.regions(g, List.of(), 200).isEmpty());
+    }
 }

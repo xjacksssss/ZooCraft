@@ -53,6 +53,30 @@ public final class EnclosureFill {
         return new Enclosure(floor.size() < maxArea, Map.copyOf(floor));
     }
 
+    /**
+     * One fill per separate region: animals already inside an earlier region's floor don't start another. An exhibit
+     * whose animals are split between a pen and open land (an escaped animal nearby) keeps its pen as a pen.
+     */
+    public static List<Enclosure> regions(FloorGrid grid, List<int[]> starts, int maxArea) {
+        List<Enclosure> regions = new java.util.ArrayList<>();
+        for (int[] start : starts) {
+            boolean covered = false;
+            for (Enclosure region : regions) {
+                if (region.contains(start[0], start[2])) {
+                    covered = true;
+                    break;
+                }
+            }
+            if (!covered) {
+                Enclosure region = fill(grid, List.of(start), maxArea);
+                if (region.area() > 0) {
+                    regions.add(region);
+                }
+            }
+        }
+        return regions;
+    }
+
     /** The animal's own floor, or the floor up to a few blocks below a flying or jumping animal. */
     private static int startHeight(FloorGrid grid, int x, int y, int z) {
         for (int from = y; from >= y - START_DROP; from--) {

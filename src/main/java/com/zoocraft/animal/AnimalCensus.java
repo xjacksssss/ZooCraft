@@ -230,7 +230,7 @@ public final class AnimalCensus {
         List<Exhibit> exhibits = EXHIBITS.get(zoo.id());
         if (exhibits != null) {
             for (Exhibit exhibit : exhibits) {
-                if (exhibit.enclosure().bounded() && exhibit.enclosure().contains(x, z)) {
+                if (exhibit.insidePen(x, z)) {
                     return true;
                 }
             }
@@ -257,14 +257,31 @@ public final class AnimalCensus {
                 starts.add(new int[]{animal.getBlockX(), animal.getBlockY(), animal.getBlockZ()});
             }
         }
-        Enclosure enclosure = EnclosureFill.fill(new LevelFloorGrid(level), starts, ZooConfig.MAX_ENCLOSURE_AREA.get());
+        // Each region on its own, so an escaped animal beside a pen doesn't turn the pen into open land.
+        List<Enclosure> regions = EnclosureFill.regions(new LevelFloorGrid(level), starts, ZooConfig.MAX_ENCLOSURE_AREA.get());
+        Map<Long, Integer> floor = new HashMap<>();
+        boolean bounded = !regions.isEmpty();
+        List<Enclosure> pens = new ArrayList<>();
+        for (Enclosure region : regions) {
+            floor.putAll(region.floor());
+            if (region.bounded()) {
+                pens.add(region);
+            } else {
+                bounded = false;
+            }
+        }
+        Enclosure enclosure = new Enclosure(bounded, Map.copyOf(floor));
         List<BlockPos> spots = new ArrayList<>();
         if (enclosure.bounded()) {
             for (int[] s : ViewingSpots.pick(enclosure, spotGrid(level, zoo), ZooConfig.MAX_VIEWING_SPOTS.get())) {
                 spots.add(new BlockPos(s[0], s[1], s[2]));
             }
         }
-        exhibit.filled(enclosure, surroundings(level, enclosure), spots, level.getGameTime());
+        exhibit.filled(enclosure, pens, surroundings(level, enclosure), spots, level.getGameTime());
+        if (!bounded) {
+            // Open exhibits keep sampled spots; take them again now the pens are known.
+            exhibit.sampledSpots(sampledSpots(level, zoo, exhibit.centre(), exhibit.animals().stream().map(Mob::position).toList()));
+        }
         exhibit.rate(level.getGameTime());
     }
 

@@ -41,6 +41,8 @@ public final class Exhibit {
     private Surroundings surroundings = new Surroundings(0, false);
     private long lastFill = Long.MIN_VALUE / 2;
     private boolean filled;
+    /** The pens among the exhibit's regions (all of them when the exhibit is bounded): visitors can't stand inside. */
+    private List<Enclosure> pens = List.of();
     private ExhibitRating.Result rating = ExhibitRating.Result.UNRATED;
     /** Animals wider than this count double for space (Phase 3 spec section 8.5). */
     private static final double LARGE_ANIMAL_WIDTH = 1.5;
@@ -78,8 +80,9 @@ public final class Exhibit {
     }
 
     /** A fill finished: a bounded enclosure brings its edge spots; an open one keeps the sampled spots. */
-    void filled(Enclosure enclosure, Surroundings surroundings, List<BlockPos> edgeSpots, long now) {
+    void filled(Enclosure enclosure, List<Enclosure> pens, Surroundings surroundings, List<BlockPos> edgeSpots, long now) {
         this.enclosure = enclosure;
+        this.pens = List.copyOf(pens);
         this.surroundings = surroundings;
         this.lastFill = now;
         this.filled = true;
@@ -126,6 +129,16 @@ public final class Exhibit {
 
     public Surroundings surroundings() {
         return surroundings;
+    }
+
+    /** Whether (x, z) is inside one of this exhibit's pens. */
+    public boolean insidePen(int x, int z) {
+        for (Enclosure pen : pens) {
+            if (pen.contains(x, z)) {
+                return true;
+            }
+        }
+        return false;
     }
 
     // ------------------------------------------------------------------ spot claims (spec 7.2)

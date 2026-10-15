@@ -342,4 +342,32 @@ public final class AnimalGameTests {
         TestZoos.cleanUp(helper, owner, zoo);
         helper.succeed();
     }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 100)
+    public static void anEscapedAnimalDoesNotPutSpotsInsideItsPen(GameTestHelper helper) {
+        // Two pigs in a pen and one escaped beside it share an exhibit, which is open because of the escapee. The pen
+        // still counts as a pen: no spot inside it.
+        ServerPlayer owner = TestZoos.player(helper, "Owner");
+        Zoo zoo = TestZoos.create(helper, owner, "Escaped", TestZoos.rectangle(helper, 2, 2, 45, 45));
+        fenceRing(helper, 16, 25); // pen floor x and z 17..24, like Big Park's pens
+        helper.spawnWithNoFreeWill(EntityType.PIG, at(20, 20));
+        helper.spawnWithNoFreeWill(EntityType.PIG, at(21, 21));
+        helper.spawnWithNoFreeWill(EntityType.PIG, at(14, 20));
+        helper.runAfterDelay(2, () -> {
+            AnimalCensus.refresh(zoo, helper.getLevel());
+            AnimalCensus.runPendingFills(helper.getLevel().getServer(), 100);
+            ZooCensus census = AnimalCensus.refresh(zoo, helper.getLevel());
+            helper.assertTrue(census.exhibits().size() == 1, "expected one exhibit, got " + census.exhibits().size());
+            Exhibit exhibit = census.exhibits().getFirst();
+            helper.assertFalse(exhibit.enclosure().bounded(), "the escapee's open land should make the exhibit open");
+            helper.assertFalse(exhibit.viewingSpots().isEmpty(), "no spots");
+            BlockPos origin = helper.absolutePos(BlockPos.ZERO);
+            for (BlockPos spot : exhibit.viewingSpots()) {
+                int x = spot.getX() - origin.getX(), z = spot.getZ() - origin.getZ();
+                helper.assertFalse(x >= 17 && x <= 24 && z >= 17 && z <= 24, "a spot inside the pen at " + x + "," + z);
+            }
+            TestZoos.cleanUp(helper, owner, zoo);
+            helper.succeed();
+        });
+    }
 }
