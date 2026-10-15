@@ -1,6 +1,7 @@
 # Clicks inside the Minecraft dev client window. Usage: powershell -File tools/click.ps1 <x> <y> [-Shift]
 # x and y are pixels from the window's top-left corner, as in a tools/screenshot.ps1 capture.
-param([int]$X, [int]$Y, [switch]$Shift)
+# powershell -File tools/click.ps1 -Escape presses Escape instead (closes the open screen).
+param([int]$X, [int]$Y, [switch]$Shift, [switch]$Escape)
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
@@ -17,6 +18,13 @@ $proc = Get-Process java, javaw -ErrorAction SilentlyContinue | Where-Object { $
 if (-not $proc) { Write-Error "No Minecraft window found"; exit 1 }
 [Mouse]::SetForegroundWindow($proc.MainWindowHandle) | Out-Null
 Start-Sleep -Milliseconds 300
+if ($Escape) {
+    [Mouse]::keybd_event(0x1B, 0, 0, [IntPtr]::Zero)
+    Start-Sleep -Milliseconds 60
+    [Mouse]::keybd_event(0x1B, 0, 2, [IntPtr]::Zero)
+    Write-Output "pressed Escape"
+    exit 0
+}
 $r = New-Object Mouse+RECT
 [Mouse]::GetWindowRect($proc.MainWindowHandle, [ref]$r) | Out-Null
 [Mouse]::SetCursorPos($r.Left + $X, $r.Top + $Y) | Out-Null

@@ -88,6 +88,18 @@ public final class NeedsGameTests {
         });
     }
 
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1200)
+    public static void rightAfterAStartVisitorsStillFindTheShop(GameTestHelper helper) {
+        Scene s = scene(helper, Items.BREAD, 5, 10, 70);
+        FacilityCensus.forgetForTest(s.zoo()); // as just after a server start, before the first census
+        helper.succeedWhen(() -> {
+            helper.assertTrue(tally(s.zoo(), CommentType.HUNGRY_NO_FOOD) == 0, "complained there's no food next to a stocked shop");
+            helper.assertTrue(TestShops.count(helper, CHEST, Items.BREAD) == 4, "bread not bought yet");
+            s.visitor().discard();
+            TestZoos.cleanUp(helper, s.owner(), s.zoo());
+        });
+    }
+
     @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 400)
     public static void hungryVisitorWithNoShopComplainsOnce(GameTestHelper helper) {
         Scene s = scene(helper, Items.BREAD, -1, 10, 70);

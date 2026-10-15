@@ -153,7 +153,7 @@ public final class VisitorErrands {
             // Still at the toilet, using it or waiting for a place: stay put.
             return new Choice(Errand.TOILET, Optional.of(toiletPos));
         }
-        FacilitySnapshot snapshot = FacilityCensus.cached(zoo);
+        FacilitySnapshot snapshot = FacilityCensus.of(zoo, level);
         int threshold = ZooConfig.NEED_THRESHOLD.get();
         // A visitor still eating its last purchase isn't hungry for another.
         boolean hungry = visitor.needs.wants(Need.HUNGER, threshold) && !(eating && holdUntil != 0);

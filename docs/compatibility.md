@@ -30,3 +30,5 @@ Known gaps are recorded here rather than hidden (GDD section 5.4).
 - **Zoos only run in loaded chunks** unless "Keep zoo loaded" is on (off by default, capped by `maxLoadedChunksPerZoo`).
 - **FTB Chunks claims** were not tested against visitor movement. Claims protect blocks rather than mob movement, so no conflict is expected.
 - **Animals are searched within 48 blocks below and 64 above** the zoo's corners and gates, so very deep or very high enclosures are not counted.
+- **Litter is an entity, not an item.** Item magnets, hoppers and vacuum mods ignore it, which is intended. Commands and mods that kill all entities (for example `/kill @e` or entity-clearing lag tools) remove litter too, which simply cleans the zoo.
+- **Shop stock containers are found through NeoForge's item handler capability.** Storage blocks that expose it (chests, barrels, Sophisticated Storage, drawers) can be linked; ones that don't can't. Hoppers and pipes can still move items in and out of linked containers.

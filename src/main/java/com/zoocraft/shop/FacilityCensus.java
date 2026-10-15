@@ -43,6 +43,17 @@ public final class FacilityCensus {
         return SNAPSHOTS.getOrDefault(zoo.id(), FacilitySnapshot.EMPTY);
     }
 
+    /** The snapshot, taken now if there isn't one yet (just after a server start), so visitors never plan from nothing. */
+    public static FacilitySnapshot of(Zoo zoo, ServerLevel level) {
+        FacilitySnapshot snapshot = SNAPSHOTS.get(zoo.id());
+        return snapshot != null ? snapshot : refresh(zoo, level);
+    }
+
+    /** GameTests only: drops the zoo's snapshot, as if the server had just started. */
+    public static void forgetForTest(Zoo zoo) {
+        SNAPSHOTS.remove(zoo.id());
+    }
+
     @SubscribeEvent
     static void onServerTick(ServerTickEvent.Post event) {
         MinecraftServer server = event.getServer();

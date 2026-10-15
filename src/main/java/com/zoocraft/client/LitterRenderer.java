@@ -35,7 +35,7 @@ public class LitterRenderer extends EntityRenderer<LitterEntity> {
             poseStack.translate(Math.cos(angle) * spread, 0.02 + i * 0.01, Math.sin(angle) * spread);
             poseStack.mulPose(Axis.YP.rotationDegrees(litter.getYRot() + i * 47));
             poseStack.mulPose(Axis.XP.rotationDegrees(90));
-            poseStack.scale(0.45f, 0.45f, 0.45f);
+            poseStack.scale(0.6f, 0.6f, 0.6f);
             itemRenderer.renderStatic(stack, ItemDisplayContext.FIXED, light, OverlayTexture.NO_OVERLAY, poseStack, buffers,
                     litter.level(), litter.getId() + i);
             poseStack.popPose();

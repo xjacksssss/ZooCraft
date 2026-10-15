@@ -264,7 +264,7 @@
   "zoocraft.alert.bin_full": "The bin at (%s, %s) is full. Empty it.",
   "zoocraft.alert.litter_hotspot": "Litter is piling up near (%s, %s). Clear it up or add a bin nearby.",
   "zoocraft.screen.dashboard.cleanliness": "Cleanliness",
-  "zoocraft.screen.dashboard.litter_collected": "%s piece(s) of litter picked up",
+  "zoocraft.screen.dashboard.litter_collected": "%s picked up",
   "zoocraft.cleanliness.clean": "Clean",
   "zoocraft.cleanliness.some_litter": "A little litter",
   "zoocraft.cleanliness.dirty": "Dirty"
