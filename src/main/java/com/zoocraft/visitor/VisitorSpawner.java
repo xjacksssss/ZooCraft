@@ -1,5 +1,7 @@
 package com.zoocraft.visitor;
 
+import com.zoocraft.core.perf.PerfSlot;
+import com.zoocraft.perf.SimulationTimers;
 import com.zoocraft.ZooCraft;
 import com.zoocraft.config.ZooConfig;
 import com.zoocraft.registry.ZooEntities;
@@ -38,7 +40,15 @@ public final class VisitorSpawner {
 
     @SubscribeEvent
     static void onServerTick(ServerTickEvent.Post event) {
-        MinecraftServer server = event.getServer();
+        long timer = SimulationTimers.start();
+        try {
+            spawnTick(event.getServer());
+        } finally {
+            SimulationTimers.stop(PerfSlot.SPAWNER, null, timer);
+        }
+    }
+
+    private static void spawnTick(MinecraftServer server) {
         int interval = ZooConfig.SPAWN_INTERVAL_SECONDS.get() * 20;
         long tick = server.getTickCount();
         for (Zoo zoo : ZooManager.get(server).all()) {

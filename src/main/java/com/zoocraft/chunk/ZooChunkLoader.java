@@ -1,5 +1,7 @@
 package com.zoocraft.chunk;
 
+import com.zoocraft.core.perf.PerfSlot;
+import com.zoocraft.perf.SimulationTimers;
 import com.zoocraft.ZooCraft;
 import com.zoocraft.config.ZooConfig;
 import com.zoocraft.zoo.Zoo;
@@ -48,7 +50,12 @@ public final class ZooChunkLoader {
         if (event.getServer().getTickCount() % UPDATE_TICKS != 0) {
             return;
         }
-        update(event.getServer());
+        long timer = SimulationTimers.start();
+        try {
+            update(event.getServer());
+        } finally {
+            SimulationTimers.stop(PerfSlot.CHUNK_LOADER, null, timer);
+        }
     }
 
     /** Brings forced chunks in line with every zoo's current settings. */

@@ -1,5 +1,7 @@
 package com.zoocraft.dashboard;
 
+import com.zoocraft.core.perf.PerfSlot;
+import com.zoocraft.perf.SimulationTimers;
 import com.mojang.authlib.GameProfile;
 import com.zoocraft.ZooCraft;
 import com.zoocraft.animal.AnimalCensus;
@@ -190,7 +192,12 @@ public final class DashboardService {
     @SubscribeEvent
     static void onServerTick(ServerTickEvent.Post event) {
         if (event.getServer().getTickCount() % REFRESH_TICKS == 0 && !SUBSCRIPTIONS.isEmpty()) {
-            refreshAll(event.getServer());
+            long timer = SimulationTimers.start();
+            try {
+                refreshAll(event.getServer());
+            } finally {
+                SimulationTimers.stop(PerfSlot.DASHBOARD, null, timer);
+            }
         }
     }
 

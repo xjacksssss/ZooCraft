@@ -1,5 +1,7 @@
 package com.zoocraft.visitor;
 
+import com.zoocraft.core.perf.PerfSlot;
+import com.zoocraft.perf.SimulationTimers;
 import com.zoocraft.animal.AnimalCensus;
 import com.zoocraft.animal.Exhibit;
 import com.zoocraft.animal.Viewing;
@@ -160,21 +162,26 @@ final class VisitorExploration {
         if (visitor.getServer() == null || (now / VisitorController.STEP) % 4 != 0) {
             return;
         }
-        int units = 0;
-        for (LitterEntity litter : LitterTracker.litterIn(zoo)) {
-            if (litter.distanceToSqr(visitor) <= LITTER_SIGHT * LITTER_SIGHT) {
-                units += litter.pile();
+        long timer = SimulationTimers.start();
+        try {
+            int units = 0;
+            for (LitterEntity litter : LitterTracker.litterIn(zoo)) {
+                if (litter.distanceToSqr(visitor) <= LITTER_SIGHT * LITTER_SIGHT) {
+                    units += litter.pile();
+                }
             }
-        }
-        ZooManager.get(visitor.getServer()).recordCleanlinessSample(zoo, Cleanliness.sample(units));
-        if (units >= LITTER_UNITS_THAT_BOTHER) {
-            visitor.changeSatisfaction(-2);
-            visitor.litterSeen++;
-            if (visitor.litterSeen >= SIGHTINGS_BEFORE_COMPLAINT) {
-                int cellX = Math.floorDiv(visitor.getBlockX(), 16) * 16 + 8;
-                int cellZ = Math.floorDiv(visitor.getBlockZ(), 16) * 16 + 8;
-                visitor.remarkOnce(CommentType.RUBBISH_EVERYWHERE, cellX + "," + cellZ);
+            ZooManager.get(visitor.getServer()).recordCleanlinessSample(zoo, Cleanliness.sample(units));
+            if (units >= LITTER_UNITS_THAT_BOTHER) {
+                visitor.changeSatisfaction(-2);
+                visitor.litterSeen++;
+                if (visitor.litterSeen >= SIGHTINGS_BEFORE_COMPLAINT) {
+                    int cellX = Math.floorDiv(visitor.getBlockX(), 16) * 16 + 8;
+                    int cellZ = Math.floorDiv(visitor.getBlockZ(), 16) * 16 + 8;
+                    visitor.remarkOnce(CommentType.RUBBISH_EVERYWHERE, cellX + "," + cellZ);
+                }
             }
+        } finally {
+            SimulationTimers.stop(PerfSlot.LITTER, zoo.id(), timer);
         }
     }
 

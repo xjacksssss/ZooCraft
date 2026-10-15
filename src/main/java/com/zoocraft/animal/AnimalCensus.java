@@ -1,5 +1,7 @@
 package com.zoocraft.animal;
 
+import com.zoocraft.core.perf.PerfSlot;
+import com.zoocraft.perf.SimulationTimers;
 import com.zoocraft.ZooCraft;
 import com.zoocraft.config.ZooConfig;
 import com.zoocraft.core.exhibit.AnimalPoint;
@@ -88,6 +90,15 @@ public final class AnimalCensus {
     }
 
     public static ZooCensus refresh(Zoo zoo, ServerLevel level) {
+        long timer = SimulationTimers.start();
+        try {
+            return doRefresh(zoo, level);
+        } finally {
+            SimulationTimers.stop(PerfSlot.ANIMAL_CENSUS, zoo.id(), timer);
+        }
+    }
+
+    private static ZooCensus doRefresh(Zoo zoo, ServerLevel level) {
         List<Mob> animals = new ArrayList<>(level.getEntitiesOfClass(Mob.class, searchBox(zoo, level),
                 mob -> AnimalRecognition.isExhibitAnimal(mob) && zoo.contains(mob.blockPosition())));
         if (animals.size() > MAX_ANIMALS) {

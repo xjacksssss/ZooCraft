@@ -1,5 +1,7 @@
 package com.zoocraft.litter;
 
+import com.zoocraft.core.perf.PerfSlot;
+import com.zoocraft.perf.SimulationTimers;
 import com.zoocraft.config.ZooConfig;
 import com.zoocraft.core.litter.LitterRules;
 import com.zoocraft.registry.ZooEntities;
@@ -17,6 +19,15 @@ public final class Littering {
     }
 
     public static LitterRules.Outcome drop(ServerLevel level, Zoo zoo, Vec3 at, int variant) {
+        long timer = SimulationTimers.start();
+        try {
+            return doDrop(level, zoo, at, variant);
+        } finally {
+            SimulationTimers.stop(PerfSlot.LITTER, zoo.id(), timer);
+        }
+    }
+
+    private static LitterRules.Outcome doDrop(ServerLevel level, Zoo zoo, Vec3 at, int variant) {
         BlockPos pos = BlockPos.containing(at);
         if (!level.dimension().equals(zoo.dimension()) || !zoo.contains(pos) || !level.getFluidState(pos).isEmpty()) {
             return LitterRules.Outcome.NONE;

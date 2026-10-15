@@ -468,4 +468,8 @@ public final class VisitorController {
     public @Nullable BlockPos target() {
         return target;
     }
+
+    public long ticksWithoutProgress(long now) {
+        return target == null ? 0 : now - lastProgressTime;
+    }
 }

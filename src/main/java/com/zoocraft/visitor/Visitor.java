@@ -1,14 +1,17 @@
 package com.zoocraft.visitor;
 
 import com.zoocraft.config.ZooConfig;
+import com.zoocraft.core.perf.PerfSlot;
 import com.zoocraft.core.needs.Need;
 import com.zoocraft.core.needs.Needs;
 import com.zoocraft.core.visitor.VisitorProfile;
 import com.zoocraft.feedback.CommentType;
+import com.zoocraft.perf.SimulationTimers;
 import com.zoocraft.zoo.Gate;
 import com.zoocraft.zoo.Zoo;
 import com.zoocraft.zoo.ZooManager;
 import net.minecraft.ChatFormatting;
+import net.minecraft.core.BlockPos;
 import net.minecraft.core.particles.ParticleTypes;
 import net.minecraft.nbt.CompoundTag;
 import net.minecraft.nbt.ListTag;
@@ -188,8 +191,18 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
 
     @Override
     protected void customServerAiStep() {
-        tickBrain(this);
-        controller.tick();
+        long brain = SimulationTimers.start();
+        try {
+            tickBrain(this);
+        } finally {
+            SimulationTimers.stop(PerfSlot.VISITOR_BRAIN, zooId, brain);
+        }
+        long decisions = SimulationTimers.start();
+        try {
+            controller.tick();
+        } finally {
+            SimulationTimers.stop(PerfSlot.VISITOR_CONTROLLER, zooId, decisions);
+        }
         if (commentTicks > 0 && --commentTicks == 0) {
             entityData.set(DATA_COMMENT, "");
         }
@@ -254,6 +267,15 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
 
     public PathRules pathRules() {
         return pathRules;
+    }
+
+    /** Ticks since this visitor last got closer to its target; 0 while it isn't walking anywhere. */
+    public long ticksWithoutProgress() {
+        return controller.ticksWithoutProgress(level().getGameTime());
+    }
+
+    public @Nullable BlockPos walkTarget() {
+        return controller.target();
     }
 
     public Needs needs() {

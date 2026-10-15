@@ -1,5 +1,7 @@
 package com.zoocraft.shop;
 
+import com.zoocraft.core.perf.PerfSlot;
+import com.zoocraft.perf.SimulationTimers;
 import com.zoocraft.ZooCraft;
 import com.zoocraft.config.ZooConfig;
 import com.zoocraft.core.shop.ProductCategory;
@@ -83,6 +85,15 @@ public final class FacilityCensus {
     }
 
     public static FacilitySnapshot refresh(Zoo zoo, ServerLevel level) {
+        long timer = SimulationTimers.start();
+        try {
+            return doRefresh(zoo, level);
+        } finally {
+            SimulationTimers.stop(PerfSlot.FACILITY_CENSUS, zoo.id(), timer);
+        }
+    }
+
+    private static FacilitySnapshot doRefresh(Zoo zoo, ServerLevel level) {
         ZooManager zoos = ZooManager.get(level.getServer());
         long now = level.getGameTime();
         List<FacilitySnapshot.ShopState> shops = new ArrayList<>();
