@@ -510,6 +510,45 @@ public final class VisitorErrands {
 
     // ------------------------------------------------------------------ holding
 
+    /** Ticks of eating left, or 0 when not eating. */
+    public long eatingTicksLeft() {
+        return holdUntil != 0 && eating ? Math.max(0, holdUntil - visitor.level().getGameTime()) : 0;
+    }
+
+    /** Saves what the visitor is holding and for how long, so a reload doesn't lose a meal or its rubbish. */
+    void save(net.minecraft.nbt.CompoundTag tag, long now) {
+        if (holdUntil != 0) {
+            tag.putLong("holdLeft", Math.max(0, holdUntil - now));
+            tag.putBoolean("eating", eating);
+            tag.putBoolean("drink", drink);
+        }
+        if (rubbishSince != 0) {
+            tag.putLong("rubbishAge", Math.max(0, now - rubbishSince));
+            tag.putInt("rubbishVariant", rubbishVariant);
+        }
+    }
+
+    /** @return true when the visitor was holding a purchase or rubbish when saved */
+    boolean load(net.minecraft.nbt.CompoundTag tag, long now) {
+        holdUntil = 0;
+        rubbishSince = 0;
+        if (tag.contains("holdLeft")) {
+            holdUntil = now + Math.max(1, tag.getLong("holdLeft"));
+            eating = tag.getBoolean("eating");
+            drink = tag.getBoolean("drink");
+        }
+        if (tag.contains("rubbishAge")) {
+            rubbishSince = Math.max(1, now - tag.getLong("rubbishAge"));
+            rubbishVariant = tag.getInt("rubbishVariant");
+        }
+        return holdUntil != 0 || rubbishSince != 0;
+    }
+
+    /** GameTests only. */
+    void startEating(ItemStack stack, long now) {
+        hold(stack, ProductCategory.FOOD, now);
+    }
+
     private void hold(ItemStack stack, ProductCategory category, long now) {
         visitor.setItemSlot(EquipmentSlot.MAINHAND, stack);
         eating = category == ProductCategory.FOOD || category == ProductCategory.DRINK;

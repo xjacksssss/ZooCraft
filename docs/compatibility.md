@@ -28,7 +28,7 @@ Known gaps are recorded here rather than hidden (GDD section 5.4).
 
 - **Recognition in ATM10 animal mods is not yet checked creature by creature.** The ATM10 run used vanilla animals. Twilight Forest, Aether, Aquaculture, Undergarden and Productive Bees creatures should be recognised by the default rules, and MineColonies citizens and dragons should be excluded, but this needs an in-world check (planned for Phase 3, GDD section 11).
 - **The MineColonies citizen entity id is assumed** to be `minecolonies:citizen`; the tag entry is optional, so a wrong id does no harm, and citizens are not `Animal`s or creature-category mobs anyway.
-- **Exhibit view counts and the animal census are not saved.** They rebuild within one census interval after a restart; view counts start again from zero.
+- **The animal census itself is not saved.** It is rebuilt the first time it is needed after a restart. Exhibit view counts are saved with the zoo and matched back to their exhibits by the animals' UUIDs, so they carry over; an exhibit whose animals have all been replaced starts again from zero.
 - **Zoos only run in loaded chunks** unless "Keep zoo loaded" is on (off by default, capped by `maxLoadedChunksPerZoo`).
 - **FTB Chunks claims** were not tested against visitor movement. Claims protect blocks rather than mob movement, so no conflict is expected.
 - **Animals are searched within 48 blocks below and 64 above** the zoo's corners and gates, so very deep or very high enclosures are not counted.

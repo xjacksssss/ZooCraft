@@ -785,6 +785,14 @@ public final class ZooManager {
         data.setDirty();
     }
 
+    /** The animal census saves its exhibits after each count, so view counts survive a restart. */
+    public void recordExhibits(Zoo zoo, List<SavedExhibit> exhibits) {
+        if (!zoo.reports().exhibits().equals(exhibits)) {
+            zoo.reports().saveExhibits(exhibits);
+            data.setDirty();
+        }
+    }
+
     /** A visitor bought and ate something. */
     public void recordMeal(Zoo zoo) {
         rollDay(zoo);

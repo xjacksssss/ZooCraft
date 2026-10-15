@@ -7,6 +7,7 @@ import com.zoocraft.core.exhibit.ExhibitGrouping;
 import com.zoocraft.registry.ZooTags;
 import com.zoocraft.zoo.BoundaryVertex;
 import com.zoocraft.zoo.Gate;
+import com.zoocraft.zoo.SavedExhibit;
 import com.zoocraft.zoo.Standing;
 import com.zoocraft.zoo.Zoo;
 import com.zoocraft.zoo.ZooAlerts;
@@ -107,8 +108,17 @@ public final class AnimalCensus {
         }
 
         List<List<AnimalPoint>> groups = ExhibitGrouping.group(points, LINK_DISTANCE);
-        List<Exhibit> previous = EXHIBITS.getOrDefault(zoo.id(), List.of());
-        List<Set<UUID>> previousIds = previous.stream().map(e -> idsOf(e.animals())).toList();
+        List<Exhibit> previous;
+        List<Set<UUID>> previousIds;
+        if (EXHIBITS.containsKey(zoo.id())) {
+            previous = EXHIBITS.get(zoo.id());
+            previousIds = previous.stream().map(e -> idsOf(e.animals())).toList();
+        } else {
+            // First count since loading: match against the exhibits saved with the zoo, by their animals' UUIDs.
+            List<SavedExhibit> saved = zoo.reports().exhibits();
+            previous = saved.stream().map(s -> Exhibit.restored(s.id(), s.views())).toList();
+            previousIds = saved.stream().map(s -> (Set<UUID>) new HashSet<>(s.animals())).toList();
+        }
         List<Set<UUID>> currentIds = groups.stream().map(g -> {
             Set<UUID> ids = new HashSet<>();
             g.forEach(p -> ids.add(p.id()));
@@ -134,6 +144,8 @@ public final class AnimalCensus {
             exhibits.add(exhibit);
         }
         EXHIBITS.put(zoo.id(), exhibits);
+        ZooManager.get(level.getServer()).recordExhibits(zoo, exhibits.stream()
+                .map(e -> new SavedExhibit(e.id(), e.animals().stream().map(Mob::getUUID).toList(), e.viewCount())).toList());
 
         ZooCensus census = new ZooCensus(level.getGameTime(), List.copyOf(animals), Map.copyOf(speciesOf), List.copyOf(exhibits),
                 Map.copyOf(names), Map.copyOf(counts));
@@ -190,6 +202,12 @@ public final class AnimalCensus {
         candidates.sort(Comparator.comparingInt((BlockPos p) -> level.getBlockState(p.below()).is(ZooTags.VISITOR_PATHS) ? 0 : 1)
                 .thenComparingDouble(p -> -p.distToCenterSqr(centre)));
         return candidates.size() > MAX_SPOTS ? List.copyOf(candidates.subList(0, MAX_SPOTS)) : List.copyOf(candidates);
+    }
+
+    /** GameTests only: forgets the zoo's census, as after a restart. */
+    public static void forgetForTest(Zoo zoo) {
+        CENSUS.remove(zoo.id());
+        EXHIBITS.remove(zoo.id());
     }
 
     @SubscribeEvent

@@ -406,6 +406,10 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
         this.litterRoll = roll;
     }
 
+    public void testStartEating(net.minecraft.world.item.ItemStack food) {
+        errands.startEating(food, level().getGameTime());
+    }
+
     public void testHoldRubbish() {
         errands.startCarryingRubbish(level().getGameTime());
     }
@@ -515,6 +519,9 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
         visit.putInt("spentInShops", spentInShops);
         visit.putDouble("litterRoll", litterRoll);
         visit.putInt("litterSeen", litterSeen);
+        CompoundTag holding = new CompoundTag();
+        errands.save(holding, level().getGameTime());
+        visit.put("holding", holding);
         tag.put("ZooVisit", visit);
         VillagerData.CODEC.encodeStart(net.minecraft.nbt.NbtOps.INSTANCE, getVillagerData()).result().ifPresent(t -> tag.put("VillagerData", t));
     }
@@ -561,8 +568,10 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
         spentInShops = visit.getInt("spentInShops");
         litterRoll = visit.contains("litterRoll") ? visit.getDouble("litterRoll") : getRandom().nextDouble();
         litterSeen = visit.getInt("litterSeen");
-        // Eating and carrying aren't saved, so a purchase still in hand would never be put away.
-        setItemSlot(EquipmentSlot.MAINHAND, net.minecraft.world.item.ItemStack.EMPTY);
+        // A purchase or rubbish in hand carries on where it left off; anything else in hand (from an older save) is put away.
+        if (!errands.load(visit.getCompound("holding"), level().getGameTime())) {
+            setItemSlot(EquipmentSlot.MAINHAND, net.minecraft.world.item.ItemStack.EMPTY);
+        }
         if (tag.contains("VillagerData")) {
             VillagerData.CODEC.parse(net.minecraft.nbt.NbtOps.INSTANCE, tag.get("VillagerData")).result().ifPresent(this::setVillagerData);
         }

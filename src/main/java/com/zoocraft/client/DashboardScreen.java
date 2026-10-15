@@ -399,7 +399,7 @@ public class DashboardScreen extends Screen {
         g.drawString(font, Component.translatable("zoocraft.screen.dashboard.refused", s.refused()), x, y += LINE, TEXT);
         g.drawString(font, Component.translatable("zoocraft.screen.dashboard.treasury", s.treasury()), x, y += LINE + 4, TEXT);
         g.drawString(font, Component.translatable("zoocraft.screen.dashboard.admission", s.price(), s.admissionIncome()), x, y += LINE, TEXT);
-        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.shop_income", s.shopIncome()), x, y += LINE, TEXT);
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.shop_income", s.shopIncomeToday(), s.shopIncome()), x, y += LINE, TEXT);
         y += LINE + 4;
         bar(g, x, y, Component.translatable("zoocraft.screen.dashboard.satisfaction"), s.satisfaction());
         bar(g, x, y + LINE + 2, Component.translatable("zoocraft.screen.dashboard.reputation"), s.reputation());

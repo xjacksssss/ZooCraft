@@ -306,7 +306,7 @@ public final class DashboardService {
         return new DashboardSnapshot(false, tab.ordinal(), zoo.id(), zoo.name(), PlayerNames.name(server, zoo.owner()),
                 zoo.owner().equals(viewer.getUUID()) || viewer.hasPermissions(2),
                 zoo.open(), zoo.admissionPrice(), ZooManager.MAX_PRICE, zoo.keepLoaded(), ZooConfig.ALLOW_ZOO_CHUNK_LOADING.get(),
-                zoo.ledger().balance(), zoo.ledger().totalAdmission(), zoo.ledger().totalShopSales(),
+                zoo.ledger().balance(), zoo.ledger().totalAdmission(), zoo.ledger().totalShopSales(), todaysShopSales(zoo, now),
                 zoo.stats().attendanceToday(), zoo.stats().totalAttendance(),
                 zoo.stats().refusedAdmissions(), VisitorTracker.count(zoo.id()), zoo.satisfaction(), zoo.reputation(),
                 (float) zoo.stats().cleanliness(), zoo.stats().litterCollected(),
@@ -316,6 +316,12 @@ public final class DashboardService {
                 zoo.reports().recommendations().recommended(), zoo.reports().recommendations().size(),
                 tab == DashboardTab.VISITORS ? visitorPanel(zoo) : DashboardSnapshot.VisitorPanel.EMPTY,
                 tab == DashboardTab.FINANCES ? financePanel(zoo) : DashboardSnapshot.FinancePanel.EMPTY);
+    }
+
+    /** Shop income so far today, or 0 if the in-game day has moved on since the last thing was recorded. */
+    private static long todaysShopSales(Zoo zoo, long gameTime) {
+        DayRecord today = zoo.reports().history().today();
+        return today.day == gameTime / 24000L ? today.shopSales : 0;
     }
 
     private static DashboardSnapshot.VisitorPanel visitorPanel(Zoo zoo) {

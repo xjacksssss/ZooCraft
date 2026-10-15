@@ -26,6 +26,13 @@ public final class Exhibit {
         this.id = id;
     }
 
+    /** An exhibit remembered from before a restart, with its view count. */
+    static Exhibit restored(UUID id, int views) {
+        Exhibit exhibit = new Exhibit(id);
+        exhibit.viewCount = views;
+        return exhibit;
+    }
+
     void update(List<Mob> animals, Set<String> species, Vec3 centre, List<BlockPos> viewingSpots) {
         this.animals = List.copyOf(animals);
         this.species = Set.copyOf(species);

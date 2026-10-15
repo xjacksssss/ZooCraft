@@ -3,7 +3,11 @@ package com.zoocraft.shop;
 import com.zoocraft.ZooCraft;
 import com.zoocraft.config.ZooConfig;
 import com.zoocraft.core.shop.ProductCategory;
+import com.zoocraft.core.litter.Cleanliness;
+import com.zoocraft.core.litter.LitterHotspots;
+import com.zoocraft.litter.LitterTracker;
 import com.zoocraft.litter.RubbishBinBlockEntity;
+import com.zoocraft.visitor.VisitorTracker;
 import com.zoocraft.zoo.BoundaryVertex;
 import com.zoocraft.zoo.Shop;
 import net.minecraft.world.level.block.entity.BlockEntity;
@@ -105,7 +109,22 @@ public final class FacilityCensus {
                 .map(t -> new FacilitySnapshot.ToiletState(t.id(), t.pos(), !zoo.isDetached(t.pos()))).toList();
         FacilitySnapshot snapshot = new FacilitySnapshot(now, List.copyOf(shops), toilets, findBins(zoo, level));
         SNAPSHOTS.put(zoo.id(), snapshot);
+        sampleEmptyZoo(zoo, zoos);
         return snapshot;
+    }
+
+    /**
+     * Cleanliness is built from what visitors see; with nobody in the zoo, it moves towards what someone would see in
+     * the worst spot instead, so cleaning up an empty zoo still shows.
+     */
+    private static void sampleEmptyZoo(Zoo zoo, ZooManager zoos) {
+        if (VisitorTracker.count(zoo.id()) > 0) {
+            return;
+        }
+        List<LitterHotspots.Point> litter = LitterTracker.litterIn(zoo).stream()
+                .map(l -> new LitterHotspots.Point(l.getBlockX(), l.getBlockZ(), l.pile())).toList();
+        List<LitterHotspots.Hotspot> worst = LitterHotspots.find(litter, 16, 1, 1);
+        zoos.recordCleanlinessSample(zoo, Cleanliness.sample(worst.isEmpty() ? 0 : worst.getFirst().units()));
     }
 
     /** Bins inside the boundary, from the block entities of the zoo's loaded chunks. Unloaded chunks are skipped. */

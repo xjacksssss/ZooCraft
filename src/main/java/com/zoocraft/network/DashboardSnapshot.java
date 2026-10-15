@@ -26,7 +26,7 @@ public record DashboardSnapshot(
         boolean openScreen, int tab,
         UUID zooId, String name, String ownerName, boolean viewerIsOwner,
         boolean open, int price, int maxPrice, boolean keepLoaded, boolean chunkLoadingAllowed,
-        long treasury, long admissionIncome, long shopIncome, int attendanceToday, long attendanceTotal, long refused, int visitorsNow,
+        long treasury, long admissionIncome, long shopIncome, long shopIncomeToday, int attendanceToday, long attendanceTotal, long refused, int visitorsNow,
         float satisfaction, float reputation, float cleanliness, long litterCollected,
         List<Component> alerts, List<CommentLine> comments, List<SpeciesLine> species, List<ExhibitLine> exhibits,
         List<GateLine> gates, List<ManagerLine> managers, List<ShopLine> shops, List<ToiletLine> toilets,
@@ -89,7 +89,7 @@ public record DashboardSnapshot(
 
     public DashboardSnapshot withOpenScreen(boolean openScreen) {
         return new DashboardSnapshot(openScreen, tab, zooId, name, ownerName, viewerIsOwner, open, price, maxPrice, keepLoaded,
-                chunkLoadingAllowed, treasury, admissionIncome, shopIncome, attendanceToday, attendanceTotal, refused, visitorsNow,
+                chunkLoadingAllowed, treasury, admissionIncome, shopIncome, shopIncomeToday, attendanceToday, attendanceTotal, refused, visitorsNow,
                 satisfaction, reputation, cleanliness, litterCollected, alerts, comments, species, exhibits, gates, managers, shops, toilets,
                 advice, recommended, recommendSample, visitors, finances);
     }
@@ -114,6 +114,7 @@ public record DashboardSnapshot(
         buf.writeVarLong(s.treasury);
         buf.writeVarLong(s.admissionIncome);
         buf.writeVarLong(s.shopIncome);
+        buf.writeVarLong(s.shopIncomeToday);
         buf.writeVarInt(s.attendanceToday);
         buf.writeVarLong(s.attendanceTotal);
         buf.writeVarLong(s.refused);
@@ -216,7 +217,7 @@ public record DashboardSnapshot(
         return new DashboardSnapshot(
                 buf.readBoolean(), buf.readVarInt(), buf.readUUID(), buf.readUtf(), buf.readUtf(), buf.readBoolean(),
                 buf.readBoolean(), buf.readVarInt(), buf.readVarInt(), buf.readBoolean(), buf.readBoolean(),
-                buf.readVarLong(), buf.readVarLong(), buf.readVarLong(), buf.readVarInt(), buf.readVarLong(), buf.readVarLong(), buf.readVarInt(),
+                buf.readVarLong(), buf.readVarLong(), buf.readVarLong(), buf.readVarLong(), buf.readVarInt(), buf.readVarLong(), buf.readVarLong(), buf.readVarInt(),
                 buf.readFloat(), buf.readFloat(), buf.readFloat(), buf.readVarLong(),
                 readList(buf, TEXT::decode),
                 readList(buf, b -> new CommentLine(TEXT.decode(b), b.readVarInt())),
