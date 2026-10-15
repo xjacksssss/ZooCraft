@@ -32,6 +32,19 @@ class PriceRulesTest {
     }
 
     @Test
+    void limitIsRoundedToTheNearestEmerald() {
+        // 2 × 1.0 × 0.95 × 1.0 = 1.9: close enough to the default price of 2 to pay it.
+        assertTrue(PriceRules.accepts(2, 2, VisitorProfile.ANIMAL_ENTHUSIAST, 0.95, 50));
+        // 2 × 0.8 × 0.7 × 1.0 = 1.12: a thrifty budget visitor won't pay 2.
+        assertFalse(PriceRules.accepts(2, 2, VisitorProfile.BUDGET_CONSCIOUS, 0.7, 50));
+    }
+
+    @Test
+    void oneEmeraldIsAlwaysAcceptable() {
+        assertTrue(PriceRules.accepts(1, 1, VisitorProfile.BUDGET_CONSCIOUS, 0.7, 0));
+    }
+
+    @Test
     void reputationRaisesWillingnessToPay() {
         assertTrue(PriceRules.maxAcceptable(2, VisitorProfile.ANIMAL_ENTHUSIAST, 1.0, 90)
                 > PriceRules.maxAcceptable(2, VisitorProfile.ANIMAL_ENTHUSIAST, 1.0, 10));

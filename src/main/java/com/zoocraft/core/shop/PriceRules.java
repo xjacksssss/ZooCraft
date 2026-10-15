@@ -27,7 +27,11 @@ public final class PriceRules {
         return categoryDefault * profileShopFactor(profile) * personalFactor * (0.5 + reputation / 100.0);
     }
 
+    /**
+     * Prices are whole emeralds, so the limit is rounded to the nearest one: a visitor whose limit is 1.9 still pays 2.
+     * One emerald, the smallest price there is, is always acceptable.
+     */
     public static boolean accepts(int price, int categoryDefault, VisitorProfile profile, double personalFactor, double reputation) {
-        return price <= maxAcceptable(categoryDefault, profile, personalFactor, reputation);
+        return price <= Math.max(MIN_PRICE, Math.round(maxAcceptable(categoryDefault, profile, personalFactor, reputation)));
     }
 }
