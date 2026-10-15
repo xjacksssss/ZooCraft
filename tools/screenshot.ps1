@@ -1,5 +1,5 @@
 # Captures the Minecraft dev client window to a PNG. Usage: powershell -File tools/screenshot.ps1 out.png
-param([string]$Out = "screenshot.png")
+param([string]$Out = "screenshot.png", [int]$Window = 0)
 Add-Type -AssemblyName System.Drawing
 Add-Type @"
 using System;
@@ -11,7 +11,8 @@ public class Win {
   public struct RECT { public int Left, Top, Right, Bottom; }
 }
 "@
-$proc = Get-Process java, javaw -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like "Minecraft*" } | Select-Object -First 1
+# With several clients open, -Window picks one by start order (0 = the first started).
+$proc = Get-Process java, javaw -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like "Minecraft*" -or $_.MainWindowTitle -like "All The Mods*" } | Sort-Object StartTime | Select-Object -Skip $Window -First 1
 if (-not $proc) { Write-Error "No Minecraft window found"; exit 1 }
 [Win]::ShowWindow($proc.MainWindowHandle, 9) | Out-Null
 [Win]::SetForegroundWindow($proc.MainWindowHandle) | Out-Null

@@ -1,7 +1,7 @@
 # Clicks inside the Minecraft dev client window. Usage: powershell -File tools/click.ps1 <x> <y> [-Shift]
 # x and y are pixels from the window's top-left corner, as in a tools/screenshot.ps1 capture.
 # powershell -File tools/click.ps1 -Escape presses Escape instead (closes the open screen).
-param([int]$X, [int]$Y, [switch]$Shift, [switch]$Escape)
+param([int]$X, [int]$Y, [switch]$Shift, [switch]$Escape, [int]$Window = 0)
 Add-Type @"
 using System;
 using System.Runtime.InteropServices;
@@ -14,7 +14,8 @@ public class Mouse {
   public struct RECT { public int Left, Top, Right, Bottom; }
 }
 "@
-$proc = Get-Process java, javaw -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like "Minecraft*" } | Select-Object -First 1
+# With several clients open, -Window picks one by start order (0 = the first started).
+$proc = Get-Process java, javaw -ErrorAction SilentlyContinue | Where-Object { $_.MainWindowTitle -like "Minecraft*" -or $_.MainWindowTitle -like "All The Mods*" } | Sort-Object StartTime | Select-Object -Skip $Window -First 1
 if (-not $proc) { Write-Error "No Minecraft window found"; exit 1 }
 [Mouse]::SetForegroundWindow($proc.MainWindowHandle) | Out-Null
 Start-Sleep -Milliseconds 300

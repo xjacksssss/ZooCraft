@@ -1,8 +1,6 @@
 package com.zoocraft.dashboard;
 
 import com.zoocraft.core.report.Advice;
-import com.zoocraft.shop.FacilityCensus;
-import com.zoocraft.shop.FacilitySnapshot;
 import com.zoocraft.shop.ProductCatalog;
 import com.zoocraft.zoo.Shop;
 import com.zoocraft.zoo.Toilet;
@@ -79,11 +77,7 @@ final class AdviceBuilder {
             }
         }
 
-        for (FacilitySnapshot.BinState bin : FacilityCensus.cached(zoo).bins()) {
-            if (!bin.usable()) {
-                add(issues, text, "bin_full", 1, Component.translatable("zoocraft.advice.bin_full", bin.pos().getX(), bin.pos().getZ()));
-            }
-        }
+        // Full bins and litter hotspots are current state, shown as alerts above the advice, so they aren't repeated here.
 
         return Advice.rank(issues, limit).stream().map(text::get).toList();
     }

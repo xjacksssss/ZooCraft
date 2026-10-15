@@ -15,6 +15,8 @@ Known gaps are recorded here rather than hidden (GDD section 5.4).
 | 2026-10-14 | M4 | Standalone server | Loads; a saved zoo world reloads intact; visitors keep arriving and paying with no players online (zoo inside spawn chunks); no errors. |
 | 2026-10-14 | M4 | Dev server + 2 clients | Owner and manager see the same dashboard numbers live; manager permissions match the GDD table; closing from the dashboard sends every visitor out; zoo data survives a server restart. |
 | 2026-10-14 | M4 | ATM10 | A zoo world opens with all ATM10 mods; visitors arrive, pay, walk between pens and comment; outlines render; the dashboard opens on the default `;` key and shows live data; JourneyMap shows visitors as villagers. |
+| 2026-10-15 | M5–M8 | Dev server + 2 clients | Owner and manager see the same Shops tab; a price change by one shows on the other within a second; a restock shows straight away; removing the manager closes their dashboard and refuses their shop commands. A server restart with visitors mid-purchase keeps the treasury, shop takings, toilets, history and litter exactly as before. |
+| 2026-10-15 | M5–M8 | ATM10 | ZooCraft loads with all ATM10 mods and upgrades a zoo saved by Phase 1. A vanilla chest, a Sophisticated Storage chest and a Functional Storage drawer all link as shop stock; a cookie hoppered into the Sophisticated Storage chest sells through the item handler. Farmer's Delight items are classed automatically: Hamburger and Tomato as food, Apple Cider as a drink (through `c:drinks`). |
 
 ## Recognition defaults
 
@@ -32,3 +34,5 @@ Known gaps are recorded here rather than hidden (GDD section 5.4).
 - **Animals are searched within 48 blocks below and 64 above** the zoo's corners and gates, so very deep or very high enclosures are not counted.
 - **Litter is an entity, not an item.** Item magnets, hoppers and vacuum mods ignore it, which is intended. Commands and mods that kill all entities (for example `/kill @e` or entity-clearing lag tools) remove litter too, which simply cleans the zoo.
 - **Shop stock containers are found through NeoForge's item handler capability.** Storage blocks that expose it (chests, barrels, Sophisticated Storage, drawers) can be linked; ones that don't can't. Hoppers and pipes can still move items in and out of linked containers.
+- **Commands can't fill every modded container.** `/item replace` doesn't reach Sophisticated Storage inventories, so scripted checks fill them with a hopper instead. Visitors and the dashboard are unaffected, because they go through the item handler capability.
+- **Shop stock counts only loaded containers.** A container in an unloaded chunk counts as empty and the Shops tab says some stock is in an unloaded area.

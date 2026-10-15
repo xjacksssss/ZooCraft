@@ -24,11 +24,11 @@ import java.util.Objects;
 import java.util.UUID;
 
 /**
- * The zoo dashboard (spec section 9.2, Phase 2 spec section 10.2): Overview, Animals, Shops and Settings. Shows the latest server snapshot and sends
+ * The zoo dashboard (spec section 9.2, Phase 2 spec section 10.2): Overview, Animals, Shops, Visitors, Finances and Settings. Shows the latest server snapshot and sends
  * button presses to the server; it never changes zoo data itself.
  */
 public class DashboardScreen extends Screen {
-    private static final int PANEL_WIDTH = 360;
+    private static final int PANEL_WIDTH = 384;
     private static final int PANEL_HEIGHT = 236;
     private static final int LINE = 11;
     private static final int TEXT = 0xFFE0E0E0;
@@ -216,8 +216,8 @@ public class DashboardScreen extends Screen {
             g.drawString(font, Component.translatable("zoocraft.screen.dashboard.stock_unknown"), x, top + 76, WARNING);
         }
         g.drawString(font, Component.translatable("zoocraft.screen.dashboard.product_header"), x + 18, top + 86, HEADING);
-        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.stock_header"), x + 104, top + 86, HEADING);
-        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.price_header"), x + 132, top + 86, HEADING);
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.stock_header"), x + 98, top + 86, HEADING);
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.price_header"), x + 134, top + 86, HEADING);
         g.drawString(font, Component.translatable("zoocraft.screen.dashboard.sold_header"), x + 192, top + 86, HEADING);
         if (shop.products().isEmpty()) {
             wrapped(g, Component.translatable("zoocraft.screen.dashboard.no_products"), x, top + 98, 230, MUTED);
@@ -385,6 +385,8 @@ public class DashboardScreen extends Screen {
             case OVERVIEW -> renderOverview(graphics, s);
             case ANIMALS -> renderAnimals(graphics, s);
             case SHOPS -> renderShops(graphics, s);
+            case VISITORS -> renderVisitors(graphics, s);
+            case FINANCES -> renderFinances(graphics, s);
             case SETTINGS -> renderSettings(graphics, s);
         }
     }
@@ -407,6 +409,7 @@ public class DashboardScreen extends Screen {
                 x, y + 3 * LINE + 8, MUTED);
         long openGates = s.gates().stream().filter(gate -> gate.status() == GateStatus.OPEN.ordinal()).count();
         g.drawString(font, Component.translatable("zoocraft.screen.dashboard.gates", s.gates().size(), openGates), x, y + 4 * LINE + 10, MUTED);
+        g.drawString(font, recommendation(s), x, y + 5 * LINE + 14, TEXT);
 
         int rx = left + PANEL_WIDTH / 2 + 6;
         int width = PANEL_WIDTH / 2 - 16;
@@ -421,16 +424,120 @@ public class DashboardScreen extends Screen {
             ry = wrapped(g, alert, rx, ry, width, WARNING);
         }
         ry += 4;
-        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.saying"), rx, ry, HEADING);
-        ry += LINE;
-        if (s.comments().isEmpty()) {
-            g.drawString(font, Component.translatable("zoocraft.screen.dashboard.no_comments"), rx, ry, MUTED);
+        adviceList(g, s, rx, ry, width);
+    }
+
+    /** The ranked advice lines, or a note that there's nothing to fix; stops at the bottom of the panel. */
+    private int adviceList(GuiGraphics g, DashboardSnapshot s, int x, int y, int width) {
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.advice"), x, y, HEADING);
+        y += LINE;
+        if (s.advice().isEmpty()) {
+            g.drawString(font, Component.translatable("zoocraft.screen.dashboard.no_advice"), x, y, MUTED);
+            return y + LINE;
         }
-        for (DashboardSnapshot.CommentLine comment : s.comments()) {
-            if (ry > top + PANEL_HEIGHT - 14) {
+        for (Component line : s.advice()) {
+            if (y > top + PANEL_HEIGHT - 2 * LINE) {
                 break;
             }
-            ry = wrapped(g, Component.literal(comment.count() + "× ").append(comment.text()), rx, ry, width, TEXT);
+            y = wrapped(g, Component.literal("• ").append(line), x, y, width, TEXT) + 2;
+        }
+        return y;
+    }
+
+    private Component recommendation(DashboardSnapshot s) {
+        if (s.recommendSample() == 0) {
+            return Component.translatable("zoocraft.screen.dashboard.recommend_none");
+        }
+        return Component.translatable("zoocraft.screen.dashboard.recommend", Math.round(10.0 * s.recommended() / s.recommendSample()));
+    }
+
+    private void renderVisitors(GuiGraphics g, DashboardSnapshot s) {
+        DashboardSnapshot.VisitorPanel v = s.visitors();
+        int x = left + 10;
+        int y = top + 48;
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.v_arrivals", v.arrivals(), v.refusals()), x, y, TEXT);
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.v_departures", v.departures(),
+                String.format(java.util.Locale.ROOT, "%.1f", v.averageMinutes())), x, y += LINE, TEXT);
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.v_spend",
+                String.format(java.util.Locale.ROOT, "%.1f", v.averageSpend())), x, y += LINE, TEXT);
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.v_profiles", v.budget(), v.enthusiast(), v.general()), x, y += LINE, MUTED);
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.v_meals", v.meals(), v.hungryUnmet()), x, y += LINE + 4,
+                v.hungryUnmet() > 0 ? WARNING : TEXT);
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.v_toilets", v.toiletVisits(), v.toiletUnmet()), x, y += LINE,
+                v.toiletUnmet() > 0 ? WARNING : TEXT);
+        g.drawString(font, recommendation(s), x, y += LINE + 4, TEXT);
+
+        y += LINE + 6;
+        int half = PANEL_WIDTH / 2 - 16;
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.saying"), x, y, HEADING);
+        y += LINE;
+        if (s.comments().isEmpty()) {
+            g.drawString(font, Component.translatable("zoocraft.screen.dashboard.no_comments"), x, y, MUTED);
+        }
+        for (DashboardSnapshot.CommentLine comment : s.comments()) {
+            if (y > top + PANEL_HEIGHT - 2 * LINE) {
+                break;
+            }
+            y = wrapped(g, Component.literal(comment.count() + "× ").append(comment.text()), x, y, half, TEXT);
+        }
+        adviceList(g, s, left + PANEL_WIDTH / 2 + 6, top + 48, half);
+    }
+
+    private void renderFinances(GuiGraphics g, DashboardSnapshot s) {
+        DashboardSnapshot.FinancePanel f = s.finances();
+        int x = left + 10;
+        int y = top + 48;
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.treasury", s.treasury()), x, y, TEXT);
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.f_today", f.admissionToday(), f.shopToday()), x, y += LINE, TEXT);
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.f_moves", f.depositsToday(), f.withdrawalsToday()), x, y += LINE, MUTED);
+
+        // Income per day: admission in green, shops in gold, stacked; scaled to the best day.
+        y += LINE + 4;
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.f_chart"), x, y, HEADING);
+        int chartTop = y + LINE;
+        int chartHeight = 70;
+        int barWidth = 10;
+        double best = 1;
+        for (DashboardSnapshot.DayBar day : f.days()) {
+            best = Math.max(best, (double) day.admission() + day.shop());
+        }
+        int bx = x;
+        g.fill(x - 1, chartTop + chartHeight, x + f.days().size() * (barWidth + 2), chartTop + chartHeight + 1, MUTED);
+        for (DashboardSnapshot.DayBar day : f.days()) {
+            int admissionHeight = (int) Math.round(chartHeight * day.admission() / best);
+            int shopHeight = (int) Math.round(chartHeight * day.shop() / best);
+            int base = chartTop + chartHeight;
+            g.fill(bx, base - admissionHeight, bx + barWidth, base, 0xFF4CAF50);
+            g.fill(bx, base - admissionHeight - shopHeight, bx + barWidth, base - admissionHeight, GOLD);
+            bx += barWidth + 2;
+        }
+        g.drawString(font, Math.round(best) + "", x + f.days().size() * (barWidth + 2) + 4, chartTop, MUTED);
+
+        int rx = left + PANEL_WIDTH / 2 + 6;
+        int width = PANEL_WIDTH / 2 - 16;
+        int ry = top + 48;
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.f_shops"), rx, ry, HEADING);
+        ry += LINE;
+        if (f.shops().isEmpty()) {
+            g.drawString(font, Component.translatable("zoocraft.screen.dashboard.f_no_shops"), rx, ry, MUTED);
+            ry += LINE;
+        }
+        for (DashboardSnapshot.ShopRevenue shop : f.shops().stream().limit(6).toList()) {
+            String name = font.plainSubstrByWidth(shop.name(), width - 70);
+            g.drawString(font, name, rx, ry, TEXT);
+            String numbers = shop.today() + " / " + shop.week() + " / " + shop.total();
+            g.drawString(font, numbers, rx + width - font.width(numbers), ry, MUTED);
+            ry += LINE;
+        }
+        ry += 4;
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.f_recent"), rx, ry, HEADING);
+        ry += LINE;
+        for (Component line : f.recent()) {
+            if (ry > top + PANEL_HEIGHT - 2 * LINE) {
+                break;
+            }
+            g.drawString(font, font.substrByWidth(line, width).getString(), rx, ry, MUTED);
+            ry += LINE;
         }
     }
 
