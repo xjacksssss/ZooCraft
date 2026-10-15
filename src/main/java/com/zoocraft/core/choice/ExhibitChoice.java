@@ -23,7 +23,9 @@ public final class ExhibitChoice {
             weight *= 0.2;
         }
         weight /= 1.0 + option.distance() / option.routeScale();
-        weight /= Math.sqrt(1.0 + option.viewsToday() / (option.medianViewsToday() + 1.0));
+        // Spec 8.3 gives this an exponent of 0.5; 1.0 measured better in Big Park, where exhibits along the main paths
+        // are seen by most passers-by whatever visitors choose (docs/performance.md).
+        weight /= 1.0 + option.viewsToday() / (option.medianViewsToday() + 1.0);
         weight *= option.full() ? 0.1 : 1.0 - 0.5 * option.occupiedShare();
         return weight;
     }

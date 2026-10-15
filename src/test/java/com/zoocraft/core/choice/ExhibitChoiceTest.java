@@ -77,4 +77,11 @@ class ExhibitChoiceTest {
         ExhibitOption half = new ExhibitOption(Set.of("cow"), 10, false, 16, 0, 0, 0.5, false);
         assertEquals(0.75, ExhibitChoice.weight(half, Set.of(), false) / ExhibitChoice.weight(empty, Set.of(), false), 1e-9);
     }
+
+    @Test
+    void popularityHalvesTheWeightOfAnExhibitSeenTwiceAsOftenAsTheMedianPlusOne() {
+        ExhibitOption atMedian = new ExhibitOption(Set.of("cow"), 10, false, 16, 0, 9, 0, false);
+        ExhibitOption twice = new ExhibitOption(Set.of("cow"), 10, false, 16, 10, 9, 0, false);
+        assertEquals(0.5, ExhibitChoice.weight(twice, Set.of(), false) / ExhibitChoice.weight(atMedian, Set.of(), false), 1e-9);
+    }
 }
