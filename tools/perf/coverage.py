@@ -56,10 +56,14 @@ def main():
     sprint = "--sprint" in sys.argv
     for _ in range(minutes):
         if sprint:
-            until = game_time(r) + 1200
-            r.command("tick sprint 1200")
-            while game_time(r) < until:
-                time.sleep(1)
+            # Ten game seconds at a time, checking stuck visitors after each, so no long episode slips between samples.
+            for _ in range(6):
+                until = game_time(r) + 200
+                r.command("tick sprint 200")
+                while game_time(r) < until:
+                    time.sleep(0.5)
+                count, longest = stuck(r, zoo)
+                worst_count, worst_time = max(worst_count, count), max(worst_time, longest)
         else:
             time.sleep(60)
         count, longest = stuck(r, zoo)
