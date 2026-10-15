@@ -8,6 +8,7 @@ public enum PerfSlot {
     VISITOR_BRAIN("visitor brain"),
     VISITOR_NAVIGATION("visitor path following"),
     VISITOR_PATHFINDING("visitor path planning"),
+    VISITOR_PATH_SHORT("visitor paths that fall short"),
     ANIMAL_CENSUS("animal census"),
     FACILITY_CENSUS("facility census"),
     ENCLOSURE("enclosure checks"),

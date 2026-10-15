@@ -43,6 +43,7 @@ public final class PerfReport {
                 tick, ms(t.worstNanos(PerfSlot.SERVER_TICK.ordinal())), total, tick > 0 ? 100 * total / tick : 0,
                 ms(t.worstNanos(PerfSlot.ZOOCRAFT_TOTAL.ordinal())))));
         lines.addAll(slotLines(t));
+        lines.add(planLine(t));
         lines.add(Component.literal(String.format(Locale.ROOT, "Visitors: %d of %d allowed on the server.", VisitorTracker.total(),
                 ZooConfig.MAX_VISITORS_TOTAL.get())));
         for (Zoo zoo : ZooManager.get(server).all()) {
@@ -62,7 +63,10 @@ public final class PerfReport {
         List<Visitor> visitors = VisitorTracker.visitors(zoo.id());
         lines.add(Component.literal(zoo.name() + ": " + visitors.size() + " visitors (" + phases(visitors) + ")")
                 .withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD));
-        SimulationTimers.forZoo(zoo.id()).ifPresent(t -> lines.addAll(slotLines(t)));
+        SimulationTimers.forZoo(zoo.id()).ifPresent(t -> {
+            lines.addAll(slotLines(t));
+            lines.add(planLine(t));
+        });
 
         List<Visitor> stuck = visitors.stream().filter(v -> v.admitted() && v.ticksWithoutProgress() > STUCK_TICKS)
                 .sorted(Comparator.comparingLong(Visitor::ticksWithoutProgress).reversed()).toList();
@@ -118,7 +122,8 @@ public final class PerfReport {
     private static List<Component> slotLines(TimerSlots t) {
         List<PerfSlot> slots = new ArrayList<>();
         for (PerfSlot slot : PerfSlot.values()) {
-            if (slot != PerfSlot.SERVER_TICK && slot != PerfSlot.ZOOCRAFT_TOTAL && t.calls(slot.ordinal()) > 0) {
+            if (slot != PerfSlot.SERVER_TICK && slot != PerfSlot.ZOOCRAFT_TOTAL && slot != PerfSlot.VISITOR_PATH_SHORT
+                    && t.calls(slot.ordinal()) > 0) {
                 slots.add(slot);
             }
         }
@@ -129,6 +134,15 @@ public final class PerfReport {
                     ms(t.averageNanos(slot.ordinal())), ms(t.worstNanos(slot.ordinal())), t.calls(slot.ordinal()))));
         }
         return lines;
+    }
+
+    private static Component planLine(TimerSlots t) {
+        double seconds = Math.max(1, t.ticks()) / 20.0;
+        long plans = t.calls(PerfSlot.VISITOR_PATHFINDING.ordinal());
+        long shortOnes = t.calls(PerfSlot.VISITOR_PATH_SHORT.ordinal());
+        double each = plans == 0 ? 0 : ms(t.averageNanos(PerfSlot.VISITOR_PATHFINDING.ordinal())) * t.ticks() / plans;
+        return Component.literal(String.format(Locale.ROOT, "   Path plans: %.1f per second, %.0f%% fall short of their target, %.2f ms each",
+                plans / seconds, plans == 0 ? 0 : 100.0 * shortOnes / plans, each));
     }
 
     private static String phases(List<Visitor> visitors) {

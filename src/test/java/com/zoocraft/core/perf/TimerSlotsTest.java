@@ -76,6 +76,21 @@ class TimerSlotsTest {
     }
 
     @Test
+    void recentCallsCountOnlyTheLastTicks() {
+        TimerSlots t = new TimerSlots(3, 10);
+        for (int i = 0; i < 4; i++) {
+            t.add(A, 1);
+            t.add(A, 1);
+            t.endTick();
+        }
+        t.add(A, 1);
+        t.endTick();
+        assertEquals(1, t.calls(A, 1));
+        assertEquals(3, t.calls(A, 2));
+        assertEquals(9, t.calls(A, 100));
+    }
+
+    @Test
     void emptyTimersReportZero() {
         TimerSlots t = new TimerSlots(3, 4);
         assertEquals(0.0, t.averageNanos(A), 1e-9);

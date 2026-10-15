@@ -22,6 +22,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.ai.navigation.PathNavigation;
 import net.minecraft.world.entity.animal.Cow;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
@@ -167,6 +168,32 @@ public final class PerfGameTests {
                 helper.assertTrue(Math.abs(first - second) < 0.35, "rate changed with the step: " + first + " then " + second);
                 visitor.discard();
                 TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
+                helper.succeed();
+            });
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 200)
+    public static void realPathPlansAreCountedAndShortOnesFlagged(GameTestHelper helper) {
+        Visitor visitor = ZooEntities.VISITOR.get().create(helper.getLevel());
+        BlockPos from = helper.absolutePos(new BlockPos(2, 2, 2));
+        visitor.moveTo(from.getX() + 0.5, from.getY(), from.getZ() + 0.5, 0, 0);
+        helper.getLevel().addFreshEntity(visitor);
+        helper.runAfterDelay(2, () -> {
+            long plans = SimulationTimers.global().calls(PerfSlot.VISITOR_PATHFINDING.ordinal(), 1000);
+            long shortOnes = SimulationTimers.global().calls(PerfSlot.VISITOR_PATH_SHORT.ordinal(), 1000);
+            PathNavigation nav = visitor.getNavigation();
+            BlockPos target = helper.absolutePos(new BlockPos(20, 2, 2));
+            net.minecraft.world.level.pathfinder.Path first = nav.createPath(target, 0);
+            nav.moveTo(first, 0.6);
+            nav.createPath(target, 0); // same target, path not done: reused, not a plan
+            helper.runAfterDelay(1, () -> {
+                long newPlans = SimulationTimers.global().calls(PerfSlot.VISITOR_PATHFINDING.ordinal(), 1000) - plans;
+                long newShort = SimulationTimers.global().calls(PerfSlot.VISITOR_PATH_SHORT.ordinal(), 1000) - shortOnes;
+                helper.assertTrue(first != null && first.canReach(), "the 18-block path should reach");
+                helper.assertTrue(newPlans >= 1, "the plan wasn't counted");
+                helper.assertTrue(newShort == 0 || newPlans > newShort, "a reachable plan was counted as short");
+                visitor.discard();
                 helper.succeed();
             });
         });

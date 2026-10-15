@@ -38,7 +38,7 @@ public final class PerfLog {
         for (PerfSlot slot : PerfSlot.values()) {
             header.append(',').append(slot.name().toLowerCase(Locale.ROOT)).append("_ms");
         }
-        out.write(header.append(",visitors\n").toString());
+        out.write(header.append(",path_plans_per_s,path_short_per_s,visitors\n").toString());
         secondsLeft = seconds;
         elapsed = 0;
         return file;
@@ -70,6 +70,8 @@ public final class PerfLog {
         for (PerfSlot slot : PerfSlot.values()) {
             line.append(',').append(String.format(Locale.ROOT, "%.3f", PerfReport.ms(t.averageNanos(slot.ordinal(), 20))));
         }
+        line.append(',').append(t.calls(PerfSlot.VISITOR_PATHFINDING.ordinal(), 20))
+                .append(',').append(t.calls(PerfSlot.VISITOR_PATH_SHORT.ordinal(), 20));
         line.append(',').append(VisitorTracker.total()).append('\n');
         try {
             out.write(line.toString());

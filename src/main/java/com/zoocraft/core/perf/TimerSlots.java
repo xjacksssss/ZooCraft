@@ -95,6 +95,16 @@ public final class TimerSlots {
         return callSums[slot];
     }
 
+    /** Calls in the most recent {@code lastTicks} ticks (or all recorded ticks, if fewer). */
+    public long calls(int slot, int lastTicks) {
+        int n = Math.min(lastTicks, filled);
+        long sum = 0;
+        for (int i = 1; i <= n; i++) {
+            sum += historyCalls[slot][Math.floorMod(cursor - i, window)];
+        }
+        return sum;
+    }
+
     public int depth() {
         return depth;
     }

@@ -39,11 +39,19 @@ public class VisitorNavigation extends SmoothGroundNavigation {
 
     @Override
     protected @Nullable Path createPath(Set<BlockPos> targets, int regionOffset, boolean offsetUpward, int accuracy, float followRange) {
+        if (path != null && !path.isDone() && targets.contains(getTargetPos())) {
+            return path; // vanilla reuses the current path: not a plan
+        }
         long timer = SimulationTimers.start();
+        Path result = null;
         try {
-            return super.createPath(targets, regionOffset, offsetUpward, accuracy, followRange);
+            result = super.createPath(targets, regionOffset, offsetUpward, accuracy, followRange);
+            return result;
         } finally {
             SimulationTimers.stop(PerfSlot.VISITOR_PATHFINDING, zooId(), timer);
+            if (!targets.isEmpty() && (result == null || !result.canReach())) {
+                SimulationTimers.count(PerfSlot.VISITOR_PATH_SHORT, zooId());
+            }
         }
     }
 

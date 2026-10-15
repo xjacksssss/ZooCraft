@@ -55,6 +55,14 @@ public final class SimulationTimers {
         }
     }
 
+    /** Counts an event without timing it (count-only slots such as {@link PerfSlot#VISITOR_PATH_SHORT}). */
+    public static void count(PerfSlot slot, @Nullable UUID zooId) {
+        global.add(slot.ordinal(), 0);
+        if (zooId != null) {
+            ZOOS.computeIfAbsent(zooId, id -> new TimerSlots(SLOTS, TimerSlots.WINDOW)).add(slot.ordinal(), 0);
+        }
+    }
+
     public static TimerSlots global() {
         return global;
     }
