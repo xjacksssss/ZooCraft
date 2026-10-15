@@ -40,6 +40,7 @@ final class ZooDebugCommands {
         return debug
                 .then(ShopCommands.debugSell())
                 .then(PerfCommands.build())
+                .then(RecogniseCommand.build())
                 .then(Commands.literal("create").then(Commands.argument("name", StringArgumentType.string())
                         .then(Commands.argument("from", BlockPosArgument.blockPos()).then(Commands.argument("to", BlockPosArgument.blockPos())
                                 .executes(ZooDebugCommands::create)))))

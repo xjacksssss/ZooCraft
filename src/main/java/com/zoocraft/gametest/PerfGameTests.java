@@ -1,6 +1,7 @@
 package com.zoocraft.gametest;
 
 import com.zoocraft.ZooCraft;
+import com.zoocraft.animal.RecognitionReport;
 import com.zoocraft.core.perf.PerfSlot;
 import com.zoocraft.core.perf.TimerSlots;
 import com.zoocraft.core.visitor.VisitorProfile;
@@ -19,6 +20,7 @@ import net.minecraft.gametest.framework.GameTestHelper;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
+import net.minecraft.world.entity.EntityType;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -142,5 +144,44 @@ public final class PerfGameTests {
         helper.assertTrue(PerfReport.stuckVisitors(List.of()) == 0, "stuck in an empty list");
         helper.assertTrue(PerfReport.mostOnOneTarget(List.of()) == 0, "crowding in an empty list");
         helper.succeed();
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR)
+    public static void recognitionReportNamesTheRule(GameTestHelper helper) {
+        List<RecognitionReport.Entry> entries = RecognitionReport.run(helper.getLevel(), "minecraft");
+        RecognitionReport.Entry cow = find(entries, "minecraft:cow");
+        helper.assertTrue(cow.recognised() && cow.checked() && cow.reason().equals("extends Animal"), "cow: " + cow);
+        RecognitionReport.Entry zombie = find(entries, "minecraft:zombie");
+        helper.assertTrue(!zombie.recognised() && zombie.checked(), "zombie: " + zombie);
+        RecognitionReport.Entry villager = find(entries, "minecraft:villager");
+        helper.assertTrue(!villager.recognised() && villager.checked(), "villager: " + villager);
+        helper.assertTrue(entries.stream().allMatch(e -> e.id().getNamespace().equals("minecraft")), "other namespaces included");
+        helper.succeed();
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR)
+    public static void recognitionReportSurvivesBrokenEntities(GameTestHelper helper) {
+        List<RecognitionReport.Entry> entries = RecognitionReport.run(helper.getLevel(), "minecraft", type -> {
+            if (type == EntityType.COW) {
+                throw new IllegalStateException("broken mod entity");
+            }
+            if (type == EntityType.PIG) {
+                return null;
+            }
+            return type.create(helper.getLevel());
+        });
+        RecognitionReport.Entry cow = find(entries, "minecraft:cow");
+        helper.assertTrue(!cow.checked() && cow.recognised() && cow.reason().equals("animal spawn category"),
+                "a cow that can't be built still gets its category verdict: " + cow);
+        RecognitionReport.Entry pig = find(entries, "minecraft:pig");
+        helper.assertTrue(!pig.checked(), "a pig that came back null is unchecked: " + pig);
+        RecognitionReport.Entry sheep = find(entries, "minecraft:sheep");
+        helper.assertTrue(sheep.checked() && sheep.recognised(), "the report carried on after the failures: " + sheep);
+        helper.succeed();
+    }
+
+    private static RecognitionReport.Entry find(List<RecognitionReport.Entry> entries, String id) {
+        return entries.stream().filter(e -> e.id().toString().equals(id)).findFirst()
+                .orElseThrow(() -> new IllegalStateException(id + " missing from the report"));
     }
 }

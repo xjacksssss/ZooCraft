@@ -11,15 +11,32 @@ public final class RecognitionRules {
     }
 
     public static boolean isExhibitAnimal(RecognitionFacts facts) {
-        if (facts.excludeTagged() || facts.boss()) {
-            return false;
+        return decide(facts).recognised();
+    }
+
+    /** The same rules as {@link #isExhibitAnimal}, in the same order, naming the one that decided. */
+    public static RecognitionVerdict decide(RecognitionFacts facts) {
+        if (facts.excludeTagged()) {
+            return new RecognitionVerdict(false, RecognitionVerdict.Reason.EXCLUDED_BY_TAG);
+        }
+        if (facts.boss()) {
+            return new RecognitionVerdict(false, RecognitionVerdict.Reason.BOSS);
         }
         if (facts.includeTagged()) {
-            return true;
+            return new RecognitionVerdict(true, RecognitionVerdict.Reason.INCLUDED_BY_TAG);
         }
         if ("monster".equals(facts.spawnCategory())) {
-            return false;
+            return new RecognitionVerdict(false, RecognitionVerdict.Reason.MONSTER_CATEGORY);
         }
-        return facts.animalClass() || facts.waterAnimalClass() || ANIMAL_CATEGORIES.contains(facts.spawnCategory());
+        if (facts.animalClass()) {
+            return new RecognitionVerdict(true, RecognitionVerdict.Reason.ANIMAL_CLASS);
+        }
+        if (facts.waterAnimalClass()) {
+            return new RecognitionVerdict(true, RecognitionVerdict.Reason.WATER_ANIMAL_CLASS);
+        }
+        if (ANIMAL_CATEGORIES.contains(facts.spawnCategory())) {
+            return new RecognitionVerdict(true, RecognitionVerdict.Reason.ANIMAL_CATEGORY);
+        }
+        return new RecognitionVerdict(false, RecognitionVerdict.Reason.NO_RULE);
     }
 }

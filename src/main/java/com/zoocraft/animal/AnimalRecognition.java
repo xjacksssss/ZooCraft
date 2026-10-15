@@ -42,14 +42,30 @@ public final class AnimalRecognition {
         if (!(entity instanceof Mob) || entity instanceof Visitor || !entity.isAlive()) {
             return false;
         }
+        return RecognitionRules.isExhibitAnimal(facts(entity));
+    }
+
+    /** What the rules need to know about a constructed entity. */
+    public static RecognitionFacts facts(Entity entity) {
         EntityType<?> type = entity.getType();
-        return RecognitionRules.isExhibitAnimal(new RecognitionFacts(
+        return new RecognitionFacts(
                 type.is(EXHIBIT_ANIMALS),
                 type.is(NOT_EXHIBIT_ANIMALS),
                 type.is(Tags.EntityTypes.BOSSES),
                 entity instanceof Animal,
                 entity instanceof WaterAnimal,
-                type.getCategory().getName()));
+                type.getCategory().getName());
+    }
+
+    /** What can be known without constructing the entity: tags and spawn category only. */
+    public static RecognitionFacts factsForType(EntityType<?> type) {
+        return new RecognitionFacts(
+                type.is(EXHIBIT_ANIMALS),
+                type.is(NOT_EXHIBIT_ANIMALS),
+                type.is(Tags.EntityTypes.BOSSES),
+                false,
+                false,
+                type.getCategory().getName());
     }
 
     /** The species an entity type belongs to: its data map entry if any, otherwise the entity type itself. */
