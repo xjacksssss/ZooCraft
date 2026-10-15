@@ -184,24 +184,21 @@ public final class PerfGameTests {
         BlockPos from = helper.absolutePos(new BlockPos(2, 2, 2));
         visitor.moveTo(from.getX() + 0.5, from.getY(), from.getZ() + 0.5, 0, 0);
         helper.getLevel().addFreshEntity(visitor);
-        long[] counts = new long[2];
         boolean[] reached = new boolean[1];
-        helper.runAfterDelay(2, () -> {
-            counts[0] = SimulationTimers.global().calls(PerfSlot.VISITOR_PATHFINDING.ordinal(), 1000);
-            counts[1] = SimulationTimers.global().calls(PerfSlot.VISITOR_PATH_SHORT.ordinal(), 1000);
+        BlockPos target = helper.absolutePos(new BlockPos(20, 2, 2));
+        helper.runAfterDelay(3, () -> {
             PathNavigation nav = visitor.getNavigation();
-            BlockPos target = helper.absolutePos(new BlockPos(20, 2, 2));
             net.minecraft.world.level.pathfinder.Path first = nav.createPath(target, 0);
             reached[0] = first != null && first.canReach();
             nav.moveTo(first, 0.6);
             nav.createPath(target, 0); // same target, path not done: reused, not a plan
         });
-        helper.runAfterDelay(3, () -> {
-            long newPlans = SimulationTimers.global().calls(PerfSlot.VISITOR_PATHFINDING.ordinal(), 1000) - counts[0];
-            long newShort = SimulationTimers.global().calls(PerfSlot.VISITOR_PATH_SHORT.ordinal(), 1000) - counts[1];
+        helper.runAfterDelay(4, () -> {
+            // Plans in the tick that just ended (other tests' visitors may add to it, never take away).
+            long plans = SimulationTimers.global().calls(PerfSlot.VISITOR_PATHFINDING.ordinal(), 1);
             helper.assertTrue(reached[0], "the 18-block path should reach");
-            helper.assertTrue(newPlans >= 1, "the plan wasn't counted");
-            helper.assertTrue(newShort == 0 || newPlans > newShort, "a reachable plan was counted as short");
+            helper.assertTrue(plans >= 1, "the plan wasn't counted");
+            helper.assertTrue(((VisitorNavigation) visitor.getNavigation()).missesInARow(target) == 0, "a reachable target was counted as missed");
             visitor.discard();
             helper.succeed();
         });
@@ -373,10 +370,11 @@ public final class PerfGameTests {
 
     @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 500)
     public static void visitorsGiveUpQuicklyOnSpotsTheyCantReach(GameTestHelper helper) {
-        // A cow in a sealed stone room: every viewing spot (up to 5.5 blocks from the cow) is inside the walls.
-        for (int x = 26; x <= 39; x++) {
-            for (int z = 26; z <= 39; z++) {
-                if (x == 26 || x == 39 || z == 26 || z == 39) {
+        // A cow in a sealed stone room: every viewing spot (up to 5.5 blocks from the cow) is at least 2 blocks inside the
+        // walls, so no path can end close enough to count as arriving.
+        for (int x = 23; x <= 42; x++) {
+            for (int z = 23; z <= 42; z++) {
+                if (x == 23 || x == 42 || z == 23 || z == 42) {
                     for (int y = 2; y <= 4; y++) {
                         helper.setBlock(new BlockPos(x, y, z), net.minecraft.world.level.block.Blocks.STONE);
                     }
@@ -393,6 +391,72 @@ public final class PerfGameTests {
             helper.assertTrue(exhibits.getFirst().isUnreachable(now), "after 15 seconds the visitor still hasn't given up on the sealed room");
             visitor.discard();
             TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 100)
+    public static void aPathEndingBesideTheTargetIsNotAMiss(GameTestHelper helper) {
+        // The target is just inside a fence; the path can end right beside it, close enough to arrive.
+        for (int x = 18; x <= 22; x++) {
+            for (int z = 18; z <= 22; z++) {
+                if (x == 18 || x == 22 || z == 18 || z == 22) {
+                    helper.setBlock(new BlockPos(x, 2, z), net.minecraft.world.level.block.Blocks.OAK_FENCE);
+                }
+            }
+        }
+        Visitor visitor = ZooEntities.VISITOR.get().create(helper.getLevel());
+        BlockPos from = helper.absolutePos(new BlockPos(20, 2, 8));
+        visitor.moveTo(from.getX() + 0.5, from.getY(), from.getZ() + 0.5, 0, 0);
+        helper.getLevel().addFreshEntity(visitor);
+        BlockPos target = helper.absolutePos(new BlockPos(20, 2, 19));
+        helper.runAfterDelay(3, () -> {
+            VisitorNavigation nav = (VisitorNavigation) visitor.getNavigation();
+            nav.createPath(target, 0);
+            nav.stop();
+            nav.createPath(target, 0);
+            helper.assertTrue(nav.missesInARow(target) == 0, "a path ending beside the target counted " + nav.missesInARow(target) + " misses");
+            visitor.discard();
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 100)
+    public static void gettingCloserRestartsTheMissCount(GameTestHelper helper) {
+        // A sealed stone room: its centre can't be reached, but a visitor walking towards it is making progress.
+        for (int x = 26; x <= 39; x++) {
+            for (int z = 26; z <= 39; z++) {
+                if (x == 26 || x == 39 || z == 26 || z == 39) {
+                    for (int y = 2; y <= 4; y++) {
+                        helper.setBlock(new BlockPos(x, y, z), net.minecraft.world.level.block.Blocks.STONE);
+                    }
+                }
+            }
+        }
+        Visitor visitor = ZooEntities.VISITOR.get().create(helper.getLevel());
+        BlockPos far = helper.absolutePos(new BlockPos(32, 2, 6));
+        BlockPos nearer = helper.absolutePos(new BlockPos(32, 2, 14));
+        visitor.moveTo(far.getX() + 0.5, far.getY(), far.getZ() + 0.5, 0, 0);
+        helper.getLevel().addFreshEntity(visitor);
+        BlockPos target = helper.absolutePos(new BlockPos(32, 2, 32));
+        int[] counts = new int[3];
+        helper.runAfterDelay(3, () -> {
+            VisitorNavigation nav = (VisitorNavigation) visitor.getNavigation();
+            nav.createPath(target, 0);
+            counts[0] = nav.missesInARow(target);
+            nav.stop();
+            visitor.moveTo(nearer.getX() + 0.5, nearer.getY(), nearer.getZ() + 0.5, 0, 0);
+        });
+        helper.runAfterDelay(6, () -> {
+            VisitorNavigation nav = (VisitorNavigation) visitor.getNavigation();
+            nav.createPath(target, 0);
+            counts[1] = nav.missesInARow(target);
+            nav.stop();
+            nav.createPath(target, 0);
+            counts[2] = nav.missesInARow(target);
+            helper.assertTrue(counts[0] == 1 && counts[1] == 1 && counts[2] == 2,
+                    "miss counts " + java.util.Arrays.toString(counts) + ", expected [1, 1, 2]: progress restarts the count");
+            visitor.discard();
             helper.succeed();
         });
     }

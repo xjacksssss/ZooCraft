@@ -45,6 +45,9 @@ public class VisitorNavigation extends SmoothGroundNavigation {
         if (path != null && !path.isDone() && targets.contains(getTargetPos())) {
             return path; // vanilla reuses the current path: not a plan
         }
+        if (!canUpdatePath()) {
+            return null; // in the air or in a vehicle: vanilla doesn't search, so neither a plan nor a miss
+        }
         long timer = SimulationTimers.start();
         Path result = null;
         try {
@@ -60,7 +63,7 @@ public class VisitorNavigation extends SmoothGroundNavigation {
                 if (result == null || !result.canReach()) {
                     SimulationTimers.count(PerfSlot.VISITOR_PATH_SHORT, zooId());
                     MissedTargets.record(target);
-                    noteMiss(target);
+                    noteMiss(target, result);
                 } else {
                     misses.remove(target);
                 }
@@ -68,30 +71,56 @@ public class VisitorNavigation extends SmoothGroundNavigation {
         }
     }
 
-    /** Recent targets a plan couldn't reach although they were near enough for one search, with how often in a row. */
-    private final java.util.LinkedHashMap<BlockPos, Integer> misses = new java.util.LinkedHashMap<>();
+    /** A target plans keep missing: how often in a row, and how close the visitor was when the run started. */
+    private record Miss(int count, double distance) {
+    }
+
+    /** Recent targets a plan couldn't reach although they were near enough for one search. */
+    private final java.util.LinkedHashMap<BlockPos, Miss> misses = new java.util.LinkedHashMap<>();
     private static final int MISSES_TRACKED = 4;
     /** Targets nearer than this share of the search range should be reachable in one plan. */
     private static final double NEAR_SHARE = 0.75;
+    /** A path ending this close to the target is close enough to arrive (the exhibit arrival distance). */
+    private static final double CLOSE_ENOUGH = 2.0;
+    /** Getting at least this much closer since the last miss is progress, so the count starts again. */
+    private static final double PROGRESS = 1.0;
 
-    private void noteMiss(BlockPos target) {
+    private void noteMiss(BlockPos target, @Nullable Path result) {
+        if (result != null && result.getDistToTarget() <= CLOSE_ENOUGH) {
+            misses.remove(target); // the visitor can get close enough to arrive
+            return;
+        }
         double near = ZooConfig.VISITOR_FOLLOW_RANGE.get() * NEAR_SHARE;
-        if (mob.distanceToSqr(target.getX() + 0.5, target.getY(), target.getZ() + 0.5) > near * near) {
+        double distance = Math.sqrt(mob.distanceToSqr(target.getX() + 0.5, target.getY(), target.getZ() + 0.5));
+        if (distance > near) {
             return; // a far target gets a partial path by design
         }
-        misses.merge(target.immutable(), 1, Integer::sum);
+        Miss previous = misses.remove(target);
+        Miss next = previous == null || distance < previous.distance() - PROGRESS
+                ? new Miss(1, distance)
+                : new Miss(previous.count() + 1, previous.distance());
+        misses.put(target.immutable(), next); // re-inserted, so the most recent targets are kept
         while (misses.size() > MISSES_TRACKED) {
             misses.remove(misses.keySet().iterator().next());
         }
     }
 
-    /** How many plans in a row couldn't reach {@code target} although it was near enough for one search. */
+    /**
+     * How many plans in a row couldn't reach {@code target} although it was near enough for one search, the path
+     * didn't end close enough to arrive, and the visitor got no closer in between.
+     */
     public int missesInARow(BlockPos target) {
-        return misses.getOrDefault(target, 0);
+        Miss miss = misses.get(target);
+        return miss == null ? 0 : miss.count();
     }
 
     public void forgetMisses(BlockPos target) {
         misses.remove(target);
+    }
+
+    /** Called when the visitor heads somewhere new: old misses say nothing about the next walk. */
+    public void forgetAllMisses() {
+        misses.clear();
     }
 
     private @Nullable Path shortcutPath;

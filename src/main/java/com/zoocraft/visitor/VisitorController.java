@@ -284,6 +284,7 @@ public final class VisitorController {
         }
         if (target != null) {
             target = null;
+            failedRoutes = 0; // arrived: earlier trouble on other walks doesn't count against the next one
             if (errands.active()) {
                 lingerUntil = now + errands.onArrived(zoo, level, now);
             } else {
@@ -394,6 +395,9 @@ public final class VisitorController {
     }
 
     private void setTarget(BlockPos pos) {
+        if (visitor.getNavigation() instanceof VisitorNavigation nav) {
+            nav.forgetAllMisses();
+        }
         target = pos;
         bestDistance = Double.MAX_VALUE;
         lastProgressTime = visitor.level().getGameTime();
