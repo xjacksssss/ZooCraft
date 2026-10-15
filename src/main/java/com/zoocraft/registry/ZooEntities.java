@@ -1,6 +1,7 @@
 package com.zoocraft.registry;
 
 import com.zoocraft.ZooCraft;
+import com.zoocraft.litter.LitterEntity;
 import com.zoocraft.visitor.Visitor;
 import net.minecraft.core.registries.Registries;
 import net.minecraft.world.entity.EntityType;
@@ -22,6 +23,14 @@ public final class ZooEntities {
                     .eyeHeight(1.62f)
                     .clientTrackingRange(10)
                     .build(ZooCraft.id("visitor").toString()));
+
+    /** A piece of litter (Phase 2 spec section 9.3). */
+    public static final DeferredHolder<EntityType<?>, EntityType<LitterEntity>> LITTER = ENTITIES.register("litter",
+            () -> EntityType.Builder.<LitterEntity>of(LitterEntity::new, MobCategory.MISC)
+                    .sized(0.4f, 0.2f)
+                    .clientTrackingRange(6)
+                    .updateInterval(20)
+                    .build(ZooCraft.id("litter").toString()));
 
     /** For testing: a visitor spawned from an egg has no zoo and wanders off. */
     public static final DeferredItem<DeferredSpawnEggItem> VISITOR_SPAWN_EGG = ZooItems.ITEMS.register("visitor_spawn_egg",

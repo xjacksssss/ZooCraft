@@ -757,6 +757,12 @@ public final class ZooManager {
         data.setDirty();
     }
 
+    /** A player picked up a piece of litter in the zoo. */
+    public void recordLitterCollected(Zoo zoo) {
+        zoo.stats().litterCollected++;
+        data.setDirty();
+    }
+
     public void recordRefusal(Zoo zoo, int visitors) {
         zoo.stats().refusedAdmissions += visitors;
         data.setDirty();

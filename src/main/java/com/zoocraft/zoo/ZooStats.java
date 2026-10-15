@@ -13,7 +13,8 @@ public final class ZooStats {
             Codec.INT.fieldOf("attendanceToday").forGetter(s -> s.attendanceToday),
             Codec.LONG.fieldOf("dayNumber").forGetter(s -> s.dayNumber),
             Codec.LONG.fieldOf("refusedAdmissions").forGetter(s -> s.refusedAdmissions),
-            Codec.unboundedMap(Codec.STRING, Codec.INT).fieldOf("commentTally").forGetter(s -> s.commentTally)
+            Codec.unboundedMap(Codec.STRING, Codec.INT).fieldOf("commentTally").forGetter(s -> s.commentTally),
+            Codec.LONG.optionalFieldOf("litterCollected", 0L).forGetter(s -> s.litterCollected)
     ).apply(i, ZooStats::new));
 
     long totalAttendance;
@@ -21,17 +22,25 @@ public final class ZooStats {
     long dayNumber;
     long refusedAdmissions;
     final Map<String, Integer> commentTally;
+    long litterCollected;
 
     public ZooStats() {
-        this(0, 0, 0, 0, Map.of());
+        this(0, 0, 0, 0, Map.of(), 0);
     }
 
-    private ZooStats(long totalAttendance, int attendanceToday, long dayNumber, long refusedAdmissions, Map<String, Integer> commentTally) {
+    private ZooStats(long totalAttendance, int attendanceToday, long dayNumber, long refusedAdmissions, Map<String, Integer> commentTally,
+                     long litterCollected) {
         this.totalAttendance = totalAttendance;
         this.attendanceToday = attendanceToday;
         this.dayNumber = dayNumber;
         this.refusedAdmissions = refusedAdmissions;
         this.commentTally = new HashMap<>(commentTally);
+        this.litterCollected = litterCollected;
+    }
+
+    /** Pieces of litter players have picked up, ever. */
+    public long litterCollected() {
+        return litterCollected;
     }
 
     public long totalAttendance() {

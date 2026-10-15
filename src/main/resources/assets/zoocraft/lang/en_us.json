@@ -255,5 +255,9 @@
   "zoocraft.visitor.needs": "Hunger %s/100, toilet %s/100.",
   "zoocraft.debug.needs": "Set %s visitor(s) to hunger %s and toilet %s.",
   "block.zoocraft.rubbish_bin": "Rubbish Bin",
-  "zoocraft.msg.bin_emptied": "Bin emptied (%s piece(s) of rubbish thrown away)."
+  "zoocraft.msg.bin_emptied": "Bin emptied (%s piece(s) of rubbish thrown away).",
+  "item.zoocraft.rubbish_wrapper": "Sweet Wrapper",
+  "item.zoocraft.rubbish_cup": "Paper Cup",
+  "item.zoocraft.rubbish_paper": "Scrap of Paper",
+  "entity.zoocraft.litter": "Litter"
 }
