@@ -24,6 +24,7 @@ public enum CommentType {
     TOILET_QUEUE(-4, true),
     // Phase 3: crowds (Phase 3 spec sections 7.2 and 7.3).
     SHOP_QUEUE(-4, true),
+    CROWDED(-3, true),
     CANT_REACH_TOILET(-6, true),
     CANT_REACH_SHOP(-6, true),
     SOLD_OUT(-4, true),

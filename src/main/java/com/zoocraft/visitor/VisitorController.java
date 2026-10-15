@@ -281,6 +281,7 @@ public final class VisitorController {
         errands.tickHeld(level, now);
         errands.tickRubbish(zoo, level, now);
         errands.renewClaims(now);
+        VisitorExploration.renewSpot(visitor, now);
         if (endingByChoice && target != null && !errands.active()) {
             // Don't finish the walk to another exhibit; decide how to leave now.
             target = null;
@@ -293,29 +294,39 @@ public final class VisitorController {
         double arrival = errands.active() ? ERRAND_ARRIVAL : EXHIBIT_ARRIVAL;
         if (target != null && !closeTo(target, arrival)) {
             if (walkTowards(target, now)) {
+                BlockPos unreachable = target;
                 failedRoutes = 0;
                 target = null;
                 if (errands.active()) {
                     errands.onUnreachable(zoo, now);
                 } else {
-                    VisitorExploration.onUnreachable(visitor, zoo);
+                    VisitorExploration.onUnreachable(visitor, zoo, unreachable);
                     visitor.changeInterest(-10);
                 }
             }
             return;
         }
         if (target != null) {
-            target = null;
-            failedRoutes = 0; // arrived: earlier trouble on other walks doesn't count against the next one
             if (errands.active()) {
+                target = null;
+                failedRoutes = 0; // arrived: earlier trouble on other walks doesn't count against the next one
                 lingerUntil = now + errands.onArrived(zoo, level, now);
-            } else {
-                // Arrived at an exhibit: stay a while before choosing somewhere else.
-                lingerUntil = now + 100 + visitor.getRandom().nextInt(200);
-                VisitorExploration.onArrived(visitor, zoo, now);
+                return;
             }
+            // Arrived at an exhibit (or a wander spot): stay a while, wait for room, or move to a free spot.
+            VisitorExploration.Arrival reached = VisitorExploration.onArrived(visitor, zoo, now);
+            if (reached.retarget() != null) {
+                setTarget(reached.retarget());
+                return;
+            }
+            if (!reached.keepTarget()) {
+                target = null;
+                failedRoutes = 0;
+            }
+            lingerUntil = now + reached.linger();
             return;
         }
+        VisitorExploration.releaseSpot(visitor); // done here: choosing somewhere else
         VisitorErrands.Choice choice = errands.choose(zoo, level, now, endingByChoice);
         if (choice.errand() == Errand.LEAVE) {
             setPhase(VisitorPhase.LEAVING);
@@ -428,6 +439,7 @@ public final class VisitorController {
         exitGateId = null;
         triedExitGates.clear();
         overflowSince = 0;
+        VisitorExploration.releaseSpot(visitor);
         if (phase != VisitorPhase.QUEUEING) {
             GateQueues.release(visitor.getUUID());
             queueSlot = null;

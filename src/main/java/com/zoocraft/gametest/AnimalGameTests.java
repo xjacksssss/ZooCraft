@@ -6,6 +6,7 @@ import com.zoocraft.animal.AnimalRecognition;
 import com.zoocraft.animal.Exhibit;
 import com.zoocraft.animal.Viewing;
 import com.zoocraft.animal.ZooCensus;
+import com.zoocraft.config.ZooConfig;
 import com.zoocraft.core.visitor.VisitorProfile;
 import com.zoocraft.registry.ZooEntities;
 import com.zoocraft.visitor.Visitor;
@@ -24,6 +25,8 @@ import net.minecraft.world.phys.Vec3;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
+import java.util.ArrayList;
+import java.util.List;
 import java.util.UUID;
 
 @GameTestHolder(ZooCraft.MOD_ID)
@@ -202,5 +205,90 @@ public final class AnimalGameTests {
         helper.assertFalse(AnimalCensus.refresh(zoo, helper.getLevel()).exhibits().getFirst().viewingSpots().isEmpty(), "no spots");
         TestZoos.cleanUp(helper, owner, zoo);
         helper.succeed();
+    }
+
+    /** An open zoo over the large floor with a 4 by 4 pen of two pigs at x and z 20..23, its enclosure already found. */
+    private static Zoo crowdScene(GameTestHelper helper, ServerPlayer owner) {
+        Zoo zoo = TestZoos.create(helper, owner, "Crowd", TestZoos.rectangle(helper, 2, 2, 45, 45));
+        ZooManager zoos = TestZoos.manager(helper);
+        zoos.addGate(owner, helper.getLevel(), helper.absolutePos(new BlockPos(2, 2, 24)));
+        zoos.setPrice(owner, zoo, 0);
+        zoos.setOpen(owner, zoo, true);
+        fenceRing(helper, 19, 24);
+        helper.spawnWithNoFreeWill(EntityType.PIG, at(21, 21));
+        helper.spawnWithNoFreeWill(EntityType.PIG, at(22, 22));
+        AnimalCensus.refresh(zoo, helper.getLevel());
+        AnimalCensus.runPendingFills(helper.getLevel().getServer(), 100);
+        return zoo;
+    }
+
+    private static PerfGameTests.Setup setupOf(ServerPlayer owner, Zoo zoo) {
+        return new PerfGameTests.Setup(owner, zoo, zoo.gates().getFirst());
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1600, batch = "config")
+    public static void eightVisitorsFillFourSpotsTwoEach(GameTestHelper helper) {
+        int original = ZooConfig.MAX_VIEWING_SPOTS.get();
+        ZooConfig.MAX_VIEWING_SPOTS.set(4);
+        ServerPlayer owner = TestZoos.player(helper, "Owner");
+        Zoo zoo = crowdScene(helper, owner);
+        List<Visitor> visitors = new ArrayList<>();
+        for (int i = 0; i < 8; i++) {
+            visitors.add(PerfGameTests.exploringVisitor(helper, setupOf(owner, zoo), 6 + i, 6));
+        }
+        helper.succeedWhen(() -> {
+            Exhibit exhibit = AnimalCensus.cached(zoo).exhibits().getFirst();
+            long now = helper.getLevel().getGameTime();
+            helper.assertTrue(exhibit.viewingSpots().size() == 4, "spots " + exhibit.viewingSpots().size());
+            helper.assertTrue(exhibit.viewingSpots().stream().allMatch(s -> exhibit.claimCount(s, now) == 2), "not two on every spot");
+            ZooConfig.MAX_VIEWING_SPOTS.set(original);
+            visitors.forEach(Visitor::discard);
+            TestZoos.cleanUp(helper, owner, zoo);
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1200)
+    public static void aVisitorFindingEverySpotFullSaysItIsTooCrowded(GameTestHelper helper) {
+        ServerPlayer owner = TestZoos.player(helper, "Owner");
+        Zoo zoo = crowdScene(helper, owner);
+        Exhibit exhibit = AnimalCensus.cached(zoo).exhibits().getFirst();
+        List<UUID> fakes = new ArrayList<>();
+        for (int i = 0; i < 2 * exhibit.viewingSpots().size(); i++) {
+            fakes.add(UUID.randomUUID());
+        }
+        helper.onEachTick(() -> {
+            long now = helper.getLevel().getGameTime();
+            for (int i = 0; i < fakes.size(); i++) {
+                exhibit.claims().claim(exhibit.viewingSpots().get(i / 2), fakes.get(i), now, 2);
+            }
+        });
+        Visitor visitor = PerfGameTests.exploringVisitor(helper, setupOf(owner, zoo), 8, 8);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(zoo.stats().commentTally().getOrDefault("crowded", 0) == 1, "no crowded comment");
+            helper.assertTrue(zoo.reports().subjectsToday().containsKey("crowded|" + exhibit.id()), "complaint doesn't name the exhibit");
+            visitor.discard();
+            TestZoos.cleanUp(helper, owner, zoo);
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 400)
+    public static void removingAVisitorFreesItsViewingSpot(GameTestHelper helper) {
+        ServerPlayer owner = TestZoos.player(helper, "Owner");
+        Zoo zoo = crowdScene(helper, owner);
+        Visitor visitor = PerfGameTests.exploringVisitor(helper, setupOf(owner, zoo), 8, 8);
+        Exhibit exhibit = AnimalCensus.cached(zoo).exhibits().getFirst();
+        long[] claimedAt = {-1};
+        helper.onEachTick(() -> {
+            long now = helper.getLevel().getGameTime();
+            if (claimedAt[0] < 0 && visitor.claimedSpot() != null) {
+                claimedAt[0] = now;
+                helper.assertTrue(exhibit.claimCount(visitor.claimedSpot(), now) == 1, "claim not counted");
+                visitor.discard();
+            } else if (claimedAt[0] >= 0 && now > claimedAt[0]) {
+                helper.assertTrue(exhibit.viewingSpots().stream().allMatch(s -> exhibit.claimCount(s, now) == 0), "spot still held");
+                TestZoos.cleanUp(helper, owner, zoo);
+                helper.succeed();
+            }
+        });
     }
 }

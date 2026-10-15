@@ -9,6 +9,8 @@ import com.zoocraft.animal.ZooCensus;
 import com.zoocraft.config.ZooConfig;
 import com.zoocraft.core.choice.ExhibitChoice;
 import com.zoocraft.core.choice.ExhibitOption;
+import com.zoocraft.core.choice.SpotChoice;
+import com.zoocraft.registry.ZooTags;
 import com.zoocraft.core.visitor.StepRates;
 import com.zoocraft.core.visitor.VisitorProfile;
 import com.zoocraft.feedback.CommentType;
@@ -22,14 +24,17 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.Vec3;
+import org.jetbrains.annotations.Nullable;
 
 import java.util.ArrayList;
+import java.util.Arrays;
 import java.util.Comparator;
 import java.util.List;
 import java.util.Optional;
 
 /**
- * Where admitted visitors go and what they see (spec sections 8.4 to 8.6). Reads only the cached census.
+ * Where admitted visitors go and what they see (spec sections 8.4 to 8.6). Reads only the cached census. Visitors
+ * claim a place at the least crowded viewing spot and say so when an exhibit is too crowded (Phase 3 spec 7.2).
  */
 final class VisitorExploration {
     private static final int WANDER_RADIUS = 20;
@@ -40,15 +45,28 @@ final class VisitorExploration {
     private static final int REPEATS_BEFORE_COMPLAINT = 3;
     private static final double INTEREST_FOR_NEW_SPECIES = 15;
     private static final long UNREACHABLE_TICKS = 60 * 20;
+    /** How long a visitor waits at a full exhibit for a free spot before moving on. */
+    static final long CROWD_WAIT_TICKS = 5 * 20;
+    private static final long CROWD_RETRY_TICKS = 20;
+
+    /**
+     * What a visitor does on reaching its spot: linger for {@code linger} ticks, or walk on to {@code retarget}; with
+     * {@code keepTarget} it stays aiming at the same spot (waiting for room).
+     */
+    record Arrival(long linger, @Nullable BlockPos retarget, boolean keepTarget) {
+    }
 
     private VisitorExploration() {
     }
 
     static Optional<BlockPos> chooseTarget(Visitor visitor, Zoo zoo, ServerLevel level) {
         Optional<Visitor> leader = leaderOf(visitor);
+        releaseSpot(visitor);
+        visitor.crowdWaitSince = 0;
         if (leader.isPresent()) {
             Optional<BlockPos> near = randomSpot(visitor, zoo, level, leader.get().blockPosition(), 3);
             if (near.isPresent()) {
+                visitor.currentExhibit = null; // following the leader, who holds the spot
                 return near;
             }
         }
@@ -63,18 +81,31 @@ final class VisitorExploration {
         List<Exhibit> usable = census.exhibits().stream()
                 .filter(e -> !e.isUnreachable(now) && !e.viewingSpots().isEmpty()).toList();
         if (!usable.isEmpty()) {
+            // Phase 3 spec section 8.3: distance against the zoo's size, today's popularity and crowding.
+            int[] views = new int[usable.size()];
+            for (int i = 0; i < views.length; i++) {
+                views[i] = usable.get(i).viewsToday(now);
+            }
+            int[] sorted = views.clone();
+            Arrays.sort(sorted);
+            int median = sorted[sorted.length / 2];
+            double scale = ExhibitChoice.routeScale(zoo.shape().maxX() - zoo.shape().minX(), zoo.shape().maxZ() - zoo.shape().minZ());
             List<ExhibitOption> options = new ArrayList<>();
-            for (Exhibit exhibit : usable) {
+            for (int i = 0; i < usable.size(); i++) {
+                Exhibit exhibit = usable.get(i);
                 double distance = Math.sqrt(exhibit.centre().distanceToSqr(visitor.position()));
-                options.add(new ExhibitOption(exhibit.species(), distance, visitor.recentExhibits.contains(exhibit.id())));
+                options.add(new ExhibitOption(exhibit.species(), distance, visitor.recentExhibits.contains(exhibit.id()), scale, views[i],
+                        median, exhibit.occupiedShare(now), exhibit.full(now)));
             }
             int index = ExhibitChoice.pick(options, visitor.seenSpecies(), visitor.profile() == VisitorProfile.ANIMAL_ENTHUSIAST,
                     visitor.getRandom().nextDouble());
             Exhibit chosen = usable.get(index);
+            chosen.addAttempt(now);
             visitor.currentExhibit = chosen.id();
-            List<BlockPos> spots = chosen.viewingSpots();
-            // Spots are sorted best first; favour the first few but spread visitors out a little.
-            return Optional.of(spots.get(visitor.getRandom().nextInt(Math.min(3, spots.size()))));
+            BlockPos spot = takeSpot(visitor, level, chosen, now, false);
+            if (spot != null) {
+                return Optional.of(spot);
+            }
         }
         visitor.currentExhibit = null;
         return randomSpot(visitor, zoo, level, visitor.blockPosition(), WANDER_RADIUS);
@@ -93,6 +124,48 @@ final class VisitorExploration {
             }
         }
         return Optional.empty();
+    }
+
+    /**
+     * The least occupied reachable spot of the exhibit (spec 7.2), claimed when there is room. When every spot is full
+     * the least crowded is still returned, unclaimed, so the visitor can go and wait there; with {@code freeOnly} it
+     * returns null instead.
+     */
+    static @Nullable BlockPos takeSpot(Visitor visitor, ServerLevel level, Exhibit exhibit, long now, boolean freeOnly) {
+        int capacity = ZooConfig.VIEWING_SPOT_CAPACITY.get();
+        List<BlockPos> spots = exhibit.viewingSpots();
+        List<SpotChoice.Spot> options = new ArrayList<>(spots.size());
+        for (BlockPos spot : spots) {
+            options.add(new SpotChoice.Spot(exhibit.claimCount(spot, now), capacity, level.getBlockState(spot.below()).is(ZooTags.VISITOR_PATHS),
+                    exhibit.spotUnreachable(spot, now), Math.sqrt(spot.distSqr(visitor.blockPosition()))));
+        }
+        int index = SpotChoice.pick(options);
+        if (index < 0) {
+            return null;
+        }
+        BlockPos spot = spots.get(index);
+        if (exhibit.claims().claim(spot, visitor.getUUID(), now, capacity)) {
+            visitor.claimedSpot = spot;
+            visitor.spotExhibit = exhibit;
+            return spot;
+        }
+        return freeOnly ? null : spot;
+    }
+
+    /** Every exploring step: keeps the visitor's place at its spot while it walks there and lingers. */
+    static void renewSpot(Visitor visitor, long now) {
+        if (visitor.claimedSpot != null && visitor.spotExhibit != null) {
+            visitor.spotExhibit.claims().claim(visitor.claimedSpot, visitor.getUUID(), now, Integer.MAX_VALUE);
+        }
+    }
+
+    /** Frees the visitor's place at its viewing spot, if it holds one. */
+    static void releaseSpot(Visitor visitor) {
+        if (visitor.claimedSpot != null && visitor.spotExhibit != null) {
+            visitor.spotExhibit.claims().release(visitor.claimedSpot, visitor.getUUID());
+        }
+        visitor.claimedSpot = null;
+        visitor.spotExhibit = null;
     }
 
     /** The visitor's group leader, if it has one that is still exploring. */
@@ -138,7 +211,7 @@ final class VisitorExploration {
             }
             census.exhibitContaining(animal).ifPresent(exhibit -> {
                 if (visitor.exhibitsViewed.add(exhibit.id())) {
-                    exhibit.addView();
+                    exhibit.addView(now);
                 }
             });
             String species = census.speciesOf(animal);
@@ -200,12 +273,37 @@ final class VisitorExploration {
     }
 
     /** The visitor reached the spot it chose. */
-    static void onArrived(Visitor visitor, Zoo zoo, long now) {
-        if (visitor.currentExhibit == null) {
-            return;
+    static Arrival onArrived(Visitor visitor, Zoo zoo, long now) {
+        long linger = 100 + visitor.getRandom().nextInt(200);
+        if (visitor.currentExhibit == null || !(visitor.level() instanceof ServerLevel level)) {
+            return new Arrival(linger, null, false);
         }
-        AnimalCensus.cached(zoo).exhibit(visitor.currentExhibit).ifPresent(exhibit -> {
-            exhibit.markReached(now);
+        Optional<Exhibit> current = AnimalCensus.cached(zoo).exhibit(visitor.currentExhibit);
+        if (current.isPresent() && visitor.claimedSpot == null) {
+            // Every spot was full when it set off: take one that has come free, or wait a little, then move on.
+            BlockPos free = takeSpot(visitor, level, current.get(), now, true);
+            if (free != null) {
+                visitor.crowdWaitSince = 0;
+                return new Arrival(0, free, false);
+            }
+            if (visitor.crowdWaitSince == 0) {
+                visitor.crowdWaitSince = now;
+            }
+            if (now - visitor.crowdWaitSince < CROWD_WAIT_TICKS) {
+                return new Arrival(CROWD_RETRY_TICKS, null, true);
+            }
+            visitor.crowdWaitSince = 0;
+            visitor.remarkOnce(CommentType.CROWDED, current.get().id().toString());
+            visitor.recentExhibits.addFirst(visitor.currentExhibit);
+            while (visitor.recentExhibits.size() > RECENT_MEMORY) {
+                visitor.recentExhibits.removeLast();
+            }
+            visitor.currentExhibit = null;
+            return new Arrival(0, null, false);
+        }
+        BlockPos spot = visitor.claimedSpot;
+        current.ifPresent(exhibit -> {
+            exhibit.markReached(spot, now);
             // Only coming back to an exhibit already visited counts as seeing the same animals again.
             if (!visitor.exhibitsArrived.add(exhibit.id())) {
                 visitor.repeatVisits++;
@@ -222,15 +320,17 @@ final class VisitorExploration {
         // Look at the exhibit's animals while lingering.
         AnimalCensus.cached(zoo).exhibit(visitor.currentExhibit).flatMap(e -> e.animals().stream().filter(Mob::isAlive).findFirst())
                 .ifPresent(animal -> visitor.getLookControl().setLookAt(animal));
+        return new Arrival(linger, null, false);
     }
 
-    /** The visitor could not reach the spot it chose. */
-    static void onUnreachable(Visitor visitor, Zoo zoo) {
+    /** The visitor could not reach the spot it chose: that spot is skipped for a while (the exhibit once all are). */
+    static void onUnreachable(Visitor visitor, Zoo zoo, BlockPos spot) {
+        releaseSpot(visitor);
         if (visitor.currentExhibit == null) {
             return;
         }
         long now = visitor.level().getGameTime();
-        AnimalCensus.cached(zoo).exhibit(visitor.currentExhibit).ifPresent(e -> e.markUnreachable(now + UNREACHABLE_TICKS));
+        AnimalCensus.cached(zoo).exhibit(visitor.currentExhibit).ifPresent(e -> e.markSpotUnreachable(spot, now + UNREACHABLE_TICKS));
         visitor.remark(CommentType.CANT_REACH_EXHIBIT);
         visitor.currentExhibit = null;
     }

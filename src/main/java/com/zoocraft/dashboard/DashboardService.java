@@ -393,7 +393,7 @@ public final class DashboardService {
                 shop.stats().soldToday().getOrDefault(itemId, 0), shop.stats().missedToday(itemId));
     }
 
-    private static Component speciesLabel(Exhibit exhibit, ZooCensus census) {
+    static Component speciesLabel(Exhibit exhibit, ZooCensus census) {
         MutableComponent label = Component.empty();
         boolean first = true;
         for (String species : exhibit.species()) {

@@ -1,21 +1,29 @@
 package com.zoocraft.animal;
 
+import com.zoocraft.config.ZooConfig;
+import com.zoocraft.core.crowd.Occupancy;
 import com.zoocraft.core.exhibit.Enclosure;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.Vec3;
 
+import java.util.HashMap;
 import java.util.List;
+import java.util.Map;
 import java.util.Set;
 import java.util.UUID;
 
 /**
- * A group of nearby animals visitors can go and see. Detected automatically by the census; its identity,
- * view count and reachability carry over between censuses while its animals stay together.
+ * A group of nearby animals visitors can go and see. Detected automatically by the census; its identity, view counts,
+ * enclosure and spot history carry over between censuses while its animals stay together. Visitors claim places at
+ * its viewing spots (Phase 3 spec section 7.2).
  */
 public final class Exhibit {
     /** An open exhibit's animals outside the area searched last time are searched again at most this often. */
     static final long OPEN_REFILL_TICKS = 60 * 20;
+    /** A spot claim not renewed for this long is free again. */
+    public static final long CLAIM_EXPIRY_TICKS = 10 * 20;
+    public static final long DAY_TICKS = 24000L;
 
     /** What the exhibit's floor is like, for its rating (Phase 3 spec section 8.5). */
     public record Surroundings(int natural, boolean waterOrLeaves) {
@@ -26,7 +34,6 @@ public final class Exhibit {
     private Set<String> species = Set.of();
     private Vec3 centre = Vec3.ZERO;
     private List<BlockPos> viewingSpots = List.of();
-    private long unreachableUntil;
     private long lastReached = -1;
     private int viewCount;
     private Enclosure enclosure = Enclosure.NONE;
@@ -34,14 +41,24 @@ public final class Exhibit {
     private long lastFill = Long.MIN_VALUE / 2;
     private boolean filled;
 
+    private final Occupancy<BlockPos> claims = new Occupancy<>(CLAIM_EXPIRY_TICKS);
+    private final Map<BlockPos, Long> spotUnreachableUntil = new HashMap<>();
+    private final Map<BlockPos, Long> spotReachedAt = new HashMap<>();
+    // Today's counts (game days), for route choice and the rating.
+    private long day = -1;
+    private int viewsToday;
+    private int attemptsToday;
+
     Exhibit(UUID id) {
         this.id = id;
     }
 
-    /** An exhibit remembered from before a restart, with its view count. */
-    static Exhibit restored(UUID id, int views) {
+    /** An exhibit remembered from before a restart, with its view counts. */
+    static Exhibit restored(UUID id, int views, int viewsToday, long day) {
         Exhibit exhibit = new Exhibit(id);
         exhibit.viewCount = views;
+        exhibit.viewsToday = viewsToday;
+        exhibit.day = day;
         return exhibit;
     }
 
@@ -79,14 +96,6 @@ public final class Exhibit {
         return outside && (enclosure.bounded() || now - lastFill > OPEN_REFILL_TICKS);
     }
 
-    public Enclosure enclosure() {
-        return enclosure;
-    }
-
-    public Surroundings surroundings() {
-        return surroundings;
-    }
-
     public UUID id() {
         return id;
     }
@@ -107,34 +116,147 @@ public final class Exhibit {
         return viewingSpots;
     }
 
-    public int viewCount() {
-        return viewCount;
+    public Enclosure enclosure() {
+        return enclosure;
     }
 
-    public void addView() {
-        viewCount++;
+    public Surroundings surroundings() {
+        return surroundings;
     }
 
-    /** A visitor could not get there: skip it for a while. */
-    public void markUnreachable(long untilGameTime) {
-        unreachableUntil = untilGameTime;
+    // ------------------------------------------------------------------ spot claims (spec 7.2)
+
+    public Occupancy<BlockPos> claims() {
+        return claims;
     }
 
+    public int claimCount(BlockPos spot, long now) {
+        return claims.count(spot, now);
+    }
+
+    /** Every spot holds {@code viewingSpotCapacity} visitors already. */
+    public boolean full(long now) {
+        if (viewingSpots.isEmpty()) {
+            return false;
+        }
+        int capacity = ZooConfig.VIEWING_SPOT_CAPACITY.get();
+        for (BlockPos spot : viewingSpots) {
+            if (claims.count(spot, now) < capacity) {
+                return false;
+            }
+        }
+        return true;
+    }
+
+    /** Share of the places at this exhibit's spots that are taken, from 0 to 1. */
+    public double occupiedShare(long now) {
+        if (viewingSpots.isEmpty()) {
+            return 0;
+        }
+        int capacity = ZooConfig.VIEWING_SPOT_CAPACITY.get();
+        int taken = 0;
+        for (BlockPos spot : viewingSpots) {
+            taken += Math.min(capacity, claims.count(spot, now));
+        }
+        return (double) taken / (viewingSpots.size() * capacity);
+    }
+
+    // ------------------------------------------------------------------ reachability
+
+    /** A visitor couldn't get to this spot: skip it for a while. */
+    public void markSpotUnreachable(BlockPos spot, long untilGameTime) {
+        spotUnreachableUntil.put(spot.immutable(), untilGameTime);
+    }
+
+    public boolean spotUnreachable(BlockPos spot, long now) {
+        Long until = spotUnreachableUntil.get(spot);
+        return until != null && until > now;
+    }
+
+    /** Every spot is marked unreachable. */
     public boolean isUnreachable(long now) {
-        return unreachableUntil > now;
+        if (viewingSpots.isEmpty()) {
+            return false;
+        }
+        for (BlockPos spot : viewingSpots) {
+            if (!spotUnreachable(spot, now)) {
+                return false;
+            }
+        }
+        return true;
     }
 
-    public void markReached(long now) {
+    /** A visitor arrived at {@code spot}. */
+    public void markReached(BlockPos spot, long now) {
         lastReached = now;
-        unreachableUntil = 0;
+        spotUnreachableUntil.remove(spot);
+        spotReachedAt.put(spot.immutable(), now);
     }
 
     public long lastReached() {
         return lastReached;
     }
 
-    /** Visitors can't get close enough: no viewing spots at all, or recent attempts failed. */
+    /** How many of the current spots a visitor has reached since {@code since}. */
+    public int spotsReachedSince(long since) {
+        int reached = 0;
+        for (BlockPos spot : viewingSpots) {
+            Long at = spotReachedAt.get(spot);
+            if (at != null && at >= since) {
+                reached++;
+            }
+        }
+        return reached;
+    }
+
+    /** Visitors can't get close enough: no viewing spots at all, or every spot has recently failed. */
     public boolean viewingProblem(long now) {
         return viewingSpots.isEmpty() || isUnreachable(now);
+    }
+
+    // ------------------------------------------------------------------ views
+
+    public int viewCount() {
+        return viewCount;
+    }
+
+    public void addView(long now) {
+        roll(now);
+        viewCount++;
+        viewsToday++;
+    }
+
+    /** A visitor set off for this exhibit. */
+    public void addAttempt(long now) {
+        roll(now);
+        attemptsToday++;
+    }
+
+    public int viewsToday(long now) {
+        roll(now);
+        return viewsToday;
+    }
+
+    public int attemptsToday(long now) {
+        roll(now);
+        return attemptsToday;
+    }
+
+    /** Today's views and game day as they stand, for saving. */
+    int savedViewsToday() {
+        return viewsToday;
+    }
+
+    long savedDay() {
+        return day;
+    }
+
+    private void roll(long now) {
+        long today = now / DAY_TICKS;
+        if (today != day) {
+            day = today;
+            viewsToday = 0;
+            attemptsToday = 0;
+        }
     }
 }

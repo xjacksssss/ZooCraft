@@ -39,9 +39,10 @@ public final class FollowUpGameTests {
         helper.spawnWithNoFreeWill(EntityType.PIG, new BlockPos(10, 2, 10));
         helper.spawnWithNoFreeWill(EntityType.PIG, new BlockPos(11, 2, 10));
         Exhibit exhibit = AnimalCensus.refresh(zoo, helper.getLevel()).exhibits().getFirst();
-        exhibit.addView();
-        exhibit.addView();
-        exhibit.addView();
+        long now = helper.getLevel().getGameTime();
+        exhibit.addView(now);
+        exhibit.addView(now);
+        exhibit.addView(now);
         AnimalCensus.refresh(zoo, helper.getLevel()); // views are saved with each census
 
         // A restart: the census cache is gone and the zoo is read back from its saved form.

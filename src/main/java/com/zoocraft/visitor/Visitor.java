@@ -115,6 +115,11 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
     double litterExposure;
     // Exhibit tracking for this visit.
     @Nullable UUID currentExhibit;
+    /** The viewing spot this visitor holds a place at, and its exhibit (Phase 3 spec section 7.2). */
+    @Nullable BlockPos claimedSpot;
+    @Nullable com.zoocraft.animal.Exhibit spotExhibit;
+    /** When the visitor started waiting at a full exhibit, or 0. */
+    long crowdWaitSince;
     final java.util.Deque<UUID> recentExhibits = new java.util.ArrayDeque<>();
     final Set<UUID> exhibitsViewed = new HashSet<>();
     final Set<UUID> exhibitsArrived = new HashSet<>();
@@ -280,6 +285,11 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
         return controller.ticksWithoutProgress(level().getGameTime());
     }
 
+    /** The viewing spot this visitor holds a place at, if any. */
+    public @Nullable BlockPos claimedSpot() {
+        return claimedSpot;
+    }
+
     public @Nullable BlockPos walkTarget() {
         return controller.target();
     }
@@ -417,6 +427,7 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
     void releaseClaims() {
         errands.releaseClaims();
         GateQueues.release(getUUID());
+        VisitorExploration.releaseSpot(this);
     }
 
     // ------------------------------------------------------------------ test hooks (GameTests only)

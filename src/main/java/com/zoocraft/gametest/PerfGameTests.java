@@ -370,25 +370,34 @@ public final class PerfGameTests {
 
     @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 500)
     public static void visitorsGiveUpQuicklyOnSpotsTheyCantReach(GameTestHelper helper) {
-        // A cow in a sealed stone room: every viewing spot (up to 5.5 blocks from the cow) is at least 2 blocks inside the
-        // walls, so no path can end close enough to count as arriving.
-        for (int x = 23; x <= 42; x++) {
-            for (int z = 23; z <= 42; z++) {
-                if (x == 23 || x == 42 || z == 23 || z == 42) {
+        // A cow in a sealed stone room too big for an enclosure (34 by 34 inside), so it is an open exhibit with spots
+        // sampled round the cow, all well inside the walls: no path can end close enough to count as arriving.
+        for (int x = 6; x <= 41; x++) {
+            for (int z = 6; z <= 41; z++) {
+                if (x == 6 || x == 41 || z == 6 || z == 41) {
                     for (int y = 2; y <= 4; y++) {
                         helper.setBlock(new BlockPos(x, y, z), net.minecraft.world.level.block.Blocks.STONE);
                     }
                 }
             }
         }
-        helper.spawnWithNoFreeWill(EntityType.COW, new BlockPos(32, 2, 32));
-        Setup setup = openZoo(helper, "Sealed");
-        Visitor visitor = exploringVisitor(helper, setup, 20, 24);
+        helper.spawnWithNoFreeWill(EntityType.COW, new BlockPos(24, 2, 24));
+        ServerPlayer owner = TestZoos.player(helper, "Owner");
+        Zoo zoo = TestZoos.create(helper, owner, "Sealed", TestZoos.rectangle(helper, 2, 2, 45, 45));
+        ZooManager zoos = TestZoos.manager(helper);
+        helper.assertTrue(zoos.addGate(owner, helper.getLevel(), helper.absolutePos(new BlockPos(2, 2, 24))).success(), "gate not added");
+        zoos.setPrice(owner, zoo, 0);
+        zoos.setOpen(owner, zoo, true);
+        Setup setup = new Setup(owner, zoo, zoo.gates().getFirst());
+        Visitor visitor = exploringVisitor(helper, setup, 4, 4);
         helper.runAfterDelay(300, () -> {
             long now = helper.getLevel().getGameTime();
             List<com.zoocraft.animal.Exhibit> exhibits = com.zoocraft.animal.AnimalCensus.cached(setup.zoo()).exhibits();
             helper.assertTrue(!exhibits.isEmpty(), "the cow wasn't counted");
-            helper.assertTrue(exhibits.getFirst().isUnreachable(now), "after 15 seconds the visitor still hasn't given up on the sealed room");
+            com.zoocraft.animal.Exhibit exhibit = exhibits.getFirst();
+            helper.assertFalse(exhibit.enclosure().bounded(), "the big room counted as a bounded enclosure");
+            helper.assertTrue(exhibit.viewingSpots().stream().anyMatch(s -> exhibit.spotUnreachable(s, now)),
+                    "after 15 seconds the visitor still hasn't given up on a spot inside the sealed room");
             visitor.discard();
             TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
             helper.succeed();

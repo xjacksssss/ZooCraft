@@ -138,7 +138,7 @@ public final class AnimalCensus {
         } else {
             // First count since loading: match against the exhibits saved with the zoo, by their animals' UUIDs.
             List<SavedExhibit> saved = zoo.reports().exhibits();
-            previous = saved.stream().map(s -> Exhibit.restored(s.id(), s.views())).toList();
+            previous = saved.stream().map(s -> Exhibit.restored(s.id(), s.views(), s.viewsToday(), s.day())).toList();
             previousIds = saved.stream().map(s -> (Set<UUID>) new HashSet<>(s.animals())).toList();
         }
         List<Set<UUID>> currentIds = groups.stream().map(g -> {
@@ -173,7 +173,8 @@ public final class AnimalCensus {
         }
         EXHIBITS.put(zoo.id(), exhibits);
         ZooManager.get(level.getServer()).recordExhibits(zoo, exhibits.stream()
-                .map(e -> new SavedExhibit(e.id(), e.animals().stream().map(Mob::getUUID).toList(), e.viewCount())).toList());
+                .map(e -> new SavedExhibit(e.id(), e.animals().stream().map(Mob::getUUID).toList(), e.viewCount(), e.savedViewsToday(),
+                        e.savedDay())).toList());
 
         ZooCensus census = new ZooCensus(level.getGameTime(), List.copyOf(animals), Map.copyOf(speciesOf), List.copyOf(exhibits),
                 Map.copyOf(names), Map.copyOf(counts));

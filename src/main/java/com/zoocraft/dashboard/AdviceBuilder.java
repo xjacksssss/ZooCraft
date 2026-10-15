@@ -1,5 +1,7 @@
 package com.zoocraft.dashboard;
 
+import com.zoocraft.animal.AnimalCensus;
+import com.zoocraft.animal.ZooCensus;
 import com.zoocraft.core.report.Advice;
 import com.zoocraft.shop.ProductCatalog;
 import com.zoocraft.zoo.Shop;
@@ -48,6 +50,11 @@ final class AdviceBuilder {
             switch (kind) {
                 case "cant_reach_shop" -> shop(zoo, subject).ifPresent(shop ->
                         add(issues, text, kind, count, Component.translatable("zoocraft.advice.cant_reach_shop", shop.name())));
+                case "crowded" -> {
+                    ZooCensus census = AnimalCensus.cached(zoo);
+                    parse(subject).flatMap(census::exhibit).ifPresent(exhibit -> add(issues, text, kind, count,
+                            Component.translatable("zoocraft.advice.crowded", DashboardService.speciesLabel(exhibit, census))));
+                }
                 case "shop_queue" -> shop(zoo, subject).ifPresent(shop ->
                         add(issues, text, kind, count, Component.translatable("zoocraft.advice.shop_queue", shop.name())));
                 case "toilet_queue", "cant_reach_toilet" -> toilet(zoo, subject).ifPresent(toilet ->
