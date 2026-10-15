@@ -4,6 +4,7 @@ import com.mojang.serialization.Codec;
 import com.mojang.serialization.codecs.RecordCodecBuilder;
 
 import java.util.HashMap;
+import java.util.List;
 import java.util.Map;
 
 /** Sales figures for one shop. Today's counters roll over with the in-game day. Mutated only through {@link ZooManager}. */
@@ -15,8 +16,10 @@ public final class ShopStats {
             Codec.LONG.fieldOf("revenueToday").forGetter(ShopStats::revenueToday),
             Codec.INT.fieldOf("unitsToday").forGetter(ShopStats::unitsToday),
             Codec.unboundedMap(Codec.STRING, Codec.INT).fieldOf("soldToday").forGetter(s -> s.soldToday),
-            Codec.unboundedMap(Codec.STRING, Codec.INT).fieldOf("missedToday").forGetter(s -> s.missedToday)
-    ).apply(i, ShopStats::new));
+            Codec.unboundedMap(Codec.STRING, Codec.INT).fieldOf("missedToday").forGetter(s -> s.missedToday),
+            Codec.LONG.listOf().optionalFieldOf("daily").forGetter(s -> java.util.Optional.of(List.copyOf(s.daily)))
+    ).apply(i, (revenueTotal, unitsTotal, dayNumber, revenueToday, unitsToday, sold, missed, daily) ->
+            new ShopStats(revenueTotal, unitsTotal, dayNumber, revenueToday, unitsToday, sold, missed, daily.orElse(List.of()))));
 
     private long revenueTotal;
     private long unitsTotal;
@@ -25,13 +28,20 @@ public final class ShopStats {
     private int unitsToday;
     private final Map<String, Integer> soldToday;
     private final Map<String, Integer> missedToday;
+    /** Closed days as {@code day, revenue} pairs, oldest first, for the last 4 weeks. */
+    private final java.util.ArrayList<Long> daily;
 
     public ShopStats() {
-        this(0, 0, 0, 0, 0, Map.of(), Map.of());
+        this(0, 0, 0, 0, 0, Map.of(), Map.of(), List.of());
     }
 
     public ShopStats(long revenueTotal, long unitsTotal, long dayNumber, long revenueToday, int unitsToday,
                      Map<String, Integer> soldToday, Map<String, Integer> missedToday) {
+        this(revenueTotal, unitsTotal, dayNumber, revenueToday, unitsToday, soldToday, missedToday, List.of());
+    }
+
+    public ShopStats(long revenueTotal, long unitsTotal, long dayNumber, long revenueToday, int unitsToday,
+                     Map<String, Integer> soldToday, Map<String, Integer> missedToday, List<Long> daily) {
         this.revenueTotal = revenueTotal;
         this.unitsTotal = unitsTotal;
         this.dayNumber = dayNumber;
@@ -39,6 +49,18 @@ public final class ShopStats {
         this.unitsToday = unitsToday;
         this.soldToday = new HashMap<>(soldToday);
         this.missedToday = new HashMap<>(missedToday);
+        this.daily = new java.util.ArrayList<>(daily);
+    }
+
+    /** Revenue over the last 7 days including today. */
+    public long revenueWeek() {
+        long total = revenueToday;
+        for (int i = 0; i + 1 < daily.size(); i += 2) {
+            if (daily.get(i) > dayNumber - 7) {
+                total += daily.get(i + 1);
+            }
+        }
+        return total;
     }
 
     public long revenueTotal() {
@@ -80,6 +102,14 @@ public final class ShopStats {
 
     void rollDay(long currentDay) {
         if (currentDay != dayNumber) {
+            if (revenueToday > 0) {
+                daily.add(dayNumber);
+                daily.add(revenueToday);
+                while (daily.size() > 2 * 27) {
+                    daily.remove(0);
+                    daily.remove(0);
+                }
+            }
             dayNumber = currentDay;
             revenueToday = 0;
             unitsToday = 0;

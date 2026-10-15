@@ -44,10 +44,12 @@ public final class Zoo {
             Codec.FLOAT.fieldOf("reputation").forGetter(Zoo::reputation),
             // Not optionalFieldOf(name, default): that would hand every Phase 1 zoo the same mutable default object,
             // and skip saving it because it "equals" the default.
-            ZooFacilities.CODEC.optionalFieldOf("facilities").forGetter(z -> Optional.of(z.facilities))
-    ).apply(i, (id, name, dimension, owner, managers, boundary, gates, open, price, keepLoaded, ledger, stats, satisfaction, reputation, facilities) ->
+            ZooFacilities.CODEC.optionalFieldOf("facilities").forGetter(z -> Optional.of(z.facilities)),
+            ZooReports.CODEC.optionalFieldOf("reports").forGetter(z -> Optional.of(z.reports))
+    ).apply(i, (id, name, dimension, owner, managers, boundary, gates, open, price, keepLoaded, ledger, stats, satisfaction, reputation,
+                facilities, reports) ->
             new Zoo(id, name, dimension, owner, managers, boundary, gates, open, price, keepLoaded, ledger, stats, satisfaction, reputation,
-                    facilities.orElseGet(ZooFacilities::empty))));
+                    facilities.orElseGet(ZooFacilities::empty), reports.orElseGet(ZooReports::new))));
 
     private final UUID id;
     private String name;
@@ -64,6 +66,7 @@ public final class Zoo {
     private float satisfaction;
     private float reputation;
     private final ZooFacilities facilities;
+    private final ZooReports reports;
 
     // Runtime only, not saved.
     private ZooShape shape;
@@ -71,7 +74,7 @@ public final class Zoo {
 
     private Zoo(UUID id, String name, ResourceKey<Level> dimension, UUID owner, List<UUID> managers,
                 List<BoundaryVertex> boundary, List<Gate> gates, boolean open, int admissionPrice, boolean keepLoaded,
-                Ledger ledger, ZooStats stats, float satisfaction, float reputation, ZooFacilities facilities) {
+                Ledger ledger, ZooStats stats, float satisfaction, float reputation, ZooFacilities facilities, ZooReports reports) {
         this.id = id;
         this.name = name;
         this.dimension = dimension;
@@ -87,11 +90,12 @@ public final class Zoo {
         this.satisfaction = satisfaction;
         this.reputation = reputation;
         this.facilities = facilities;
+        this.reports = reports;
     }
 
     static Zoo create(String name, ResourceKey<Level> dimension, UUID owner, List<BoundaryVertex> boundary) {
         return new Zoo(UUID.randomUUID(), name, dimension, owner, List.of(), boundary, List.of(), false, 2, false,
-                new Ledger(), new ZooStats(), 50f, 50f, ZooFacilities.empty());
+                new Ledger(), new ZooStats(), 50f, 50f, ZooFacilities.empty(), new ZooReports());
     }
 
     public UUID id() {
@@ -183,6 +187,10 @@ public final class Zoo {
 
     public float reputation() {
         return reputation;
+    }
+
+    public ZooReports reports() {
+        return reports;
     }
 
     public List<Shop> shops() {

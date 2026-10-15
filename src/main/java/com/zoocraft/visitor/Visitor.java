@@ -317,15 +317,33 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
 
     /** {@link #remark} at most once per visit. */
     public void remarkOnce(CommentType type) {
+        remarkOnce(type, null);
+    }
+
+    public void remarkOnce(CommentType type, @Nullable String subject) {
         if (saidOnce.add(type)) {
-            remark(type);
+            remark(type, subject);
         }
     }
 
+    /** Like {@link #remark(CommentType)}, recording what the complaint is about (a shop or toilet ID, or an area). */
+    public void remark(CommentType type, @Nullable String subject) {
+        if (level().getGameTime() - lastShownComment >= COMMENT_GAP_TICKS) {
+            lastShownComment = level().getGameTime();
+            entityData.set(DATA_COMMENT, type.translationKey());
+            commentTicks = COMMENT_TICKS;
+        }
+        react(type, subject);
+    }
+
     private void react(CommentType type) {
+        react(type, null);
+    }
+
+    private void react(CommentType type, @Nullable String subject) {
         changeSatisfaction(type.satisfactionEffect());
         if (level().getServer() != null) {
-            zoo().ifPresent(zoo -> ZooManager.get(level().getServer()).recordComment(zoo, type.key()));
+            zoo().ifPresent(zoo -> ZooManager.get(level().getServer()).recordComment(zoo, type.key(), subject));
         }
     }
 
@@ -346,7 +364,8 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
             say(reason);
         }
         if (admitted && level().getServer() != null) {
-            zoo().ifPresent(zoo -> ZooManager.get(level().getServer()).recordDeparture(zoo, satisfaction));
+            long visitTicks = level().getGameTime() - visitStartTime;
+            zoo().ifPresent(zoo -> ZooManager.get(level().getServer()).recordDeparture(zoo, satisfaction, visitTicks));
         }
         if (level() instanceof ServerLevel serverLevel) {
             serverLevel.sendParticles(ParticleTypes.POOF, getX(), getY() + 1, getZ(), 12, 0.3, 0.5, 0.3, 0.02);

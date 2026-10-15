@@ -382,6 +382,7 @@ public final class VisitorErrands {
                 return usingUntil - now;
             }
             visitor.needs.useToilet();
+            ZooManager.get(visitor.getServer()).recordToiletVisit(zoo);
             ToiletOccupancy.release(toilet, visitor.getUUID());
             FacilityReach.clear(zoo, toilet);
             finishToiletErrand();
@@ -403,7 +404,7 @@ public final class VisitorErrands {
         waitingSince = 0;
         current = Errand.EXHIBIT;
         if (nearestToilet(zoo, FacilityCensus.cached(zoo), now).isEmpty()) {
-            visitor.remark(CommentType.TOILET_QUEUE);
+            visitor.remark(CommentType.TOILET_QUEUE, toilet.toString());
             toiletCooldownUntil = now + COOLDOWN_TICKS;
             triedToilets.clear();
         }
@@ -489,11 +490,11 @@ public final class VisitorErrands {
         current = Errand.EXHIBIT;
         if ((errand == Errand.FOOD || errand == Errand.SOUVENIR) && shopId != null) {
             FacilityReach.markUnreachable(zoo, shopId, now + UNREACHABLE_TICKS);
-            visitor.remark(CommentType.CANT_REACH_SHOP);
+            visitor.remark(CommentType.CANT_REACH_SHOP, shopId.toString());
             retryOrGiveUp(errand, shopId, now);
         } else if (errand == Errand.TOILET && toiletId != null) {
             FacilityReach.markUnreachable(zoo, toiletId, now + UNREACHABLE_TICKS);
-            visitor.remark(CommentType.CANT_REACH_TOILET);
+            visitor.remark(CommentType.CANT_REACH_TOILET, toiletId.toString());
             triedToilets.add(toiletId);
             usingUntil = 0;
             waitingSince = 0;
@@ -537,6 +538,7 @@ public final class VisitorErrands {
         if (eating) {
             visitor.needs.eat(drink);
             visitor.remark(CommentType.TASTY);
+            visitor.zoo().ifPresent(zoo -> ZooManager.get(level.getServer()).recordMeal(zoo));
             startCarryingRubbish(now);
         } else {
             visitor.remark(CommentType.SOUVENIR);

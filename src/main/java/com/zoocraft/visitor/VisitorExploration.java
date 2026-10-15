@@ -171,7 +171,9 @@ final class VisitorExploration {
             visitor.changeSatisfaction(-2);
             visitor.litterSeen++;
             if (visitor.litterSeen >= SIGHTINGS_BEFORE_COMPLAINT) {
-                visitor.remarkOnce(CommentType.RUBBISH_EVERYWHERE);
+                int cellX = Math.floorDiv(visitor.getBlockX(), 16) * 16 + 8;
+                int cellZ = Math.floorDiv(visitor.getBlockZ(), 16) * 16 + 8;
+                visitor.remarkOnce(CommentType.RUBBISH_EVERYWHERE, cellX + "," + cellZ);
             }
         }
     }

@@ -502,6 +502,9 @@ public final class ZooManager {
         SaleResult result = Sale.attempt(zoo.ledger(), new ShopStock(level, shop),
                 new SaleRequest(key, itemId, price, budget, usable, gameTime, actor));
         if (result.sold()) {
+            rollDay(zoo);
+            zoo.reports().history().today().shopSales += price;
+            zoo.reports().history().today().spending += price;
             shop.stats().recordSale(itemId, price);
             if (shop.price(itemId).isEmpty()) {
                 shop.setPrice(itemId, price);
@@ -700,6 +703,8 @@ public final class ZooManager {
             return ActionResult.fail(Component.translatable("zoocraft.msg.transaction_failed"));
         }
         Emeralds.remove(player, amount);
+        rollDay(zoo);
+        zoo.reports().history().today().deposits += amount;
         data.setDirty();
         fireChanged(zoo);
         return ActionResult.ok(Component.translatable("zoocraft.msg.deposited", amount, zoo.name(), zoo.ledger().balance()));
@@ -722,6 +727,8 @@ public final class ZooManager {
             return ActionResult.fail(Component.translatable("zoocraft.msg.transaction_failed"));
         }
         Emeralds.give(player, amount);
+        rollDay(zoo);
+        zoo.reports().history().today().withdrawals += amount;
         data.setDirty();
         fireChanged(zoo);
         return ActionResult.ok(Component.translatable("zoocraft.msg.withdrew", amount, zoo.name(), zoo.ledger().balance()));
@@ -732,8 +739,12 @@ public final class ZooManager {
      * admitted (and deducts its budget) when it returns {@link LedgerResult#APPLIED}.
      */
     public LedgerResult chargeAdmission(Zoo zoo, UUID visitId, int price) {
+        return chargeAdmission(zoo, visitId, price, com.zoocraft.core.visitor.VisitorProfile.GENERAL);
+    }
+
+    public LedgerResult chargeAdmission(Zoo zoo, UUID visitId, int price, com.zoocraft.core.visitor.VisitorProfile profile) {
         long gameTime = server.overworld().getGameTime();
-        zoo.stats().rollDay(gameTime / 24000L);
+        rollDay(zoo);
         if (price > 0) {
             LedgerResult result = zoo.ledger().apply(new Transaction("admission-" + visitId, TransactionType.ADMISSION, price, gameTime, "Visitor"));
             if (!result.applied()) {
@@ -743,6 +754,15 @@ public final class ZooManager {
         // Free entry has no ledger entry; the visitor's own admitted flag stops it being counted twice.
         zoo.stats().totalAttendance++;
         zoo.stats().attendanceToday++;
+        com.zoocraft.core.report.DayRecord today = zoo.reports().history().today();
+        today.admission += price;
+        today.spending += price;
+        today.arrivals++;
+        switch (profile) {
+            case BUDGET_CONSCIOUS -> today.budgetVisitors++;
+            case ANIMAL_ENTHUSIAST -> today.enthusiastVisitors++;
+            case GENERAL -> today.generalVisitors++;
+        }
         data.setDirty();
         fireChanged(zoo);
         return LedgerResult.APPLIED;
@@ -752,9 +772,44 @@ public final class ZooManager {
 
     /** Tallies a visitor comment for today's dashboard summary. */
     public void recordComment(Zoo zoo, String commentKey) {
-        zoo.stats().rollDay(server.overworld().getGameTime() / 24000L);
+        recordComment(zoo, commentKey, null);
+    }
+
+    /** @param subject what the complaint is about (a shop or toilet ID, or an area), for advice; null when nothing in particular */
+    public void recordComment(Zoo zoo, String commentKey, @org.jetbrains.annotations.Nullable String subject) {
+        rollDay(zoo);
         zoo.stats().commentTally.merge(commentKey, 1, Integer::sum);
+        if (subject != null) {
+            zoo.reports().recordSubject(commentKey, subject);
+        }
         data.setDirty();
+    }
+
+    /** A visitor bought and ate something. */
+    public void recordMeal(Zoo zoo) {
+        rollDay(zoo);
+        zoo.reports().history().today().meals++;
+        data.setDirty();
+    }
+
+    /** A visitor used a toilet. */
+    public void recordToiletVisit(Zoo zoo) {
+        rollDay(zoo);
+        zoo.reports().history().today().toiletVisits++;
+        data.setDirty();
+    }
+
+    /** Starts new daily counters when the in-game day has changed; call before recording anything. */
+    private void rollDay(Zoo zoo) {
+        long day = server.overworld().getGameTime() / 24000L;
+        zoo.stats().rollDay(day);
+        zoo.reports().rollDay(day, zoo.ledger().balance());
+    }
+
+    /** GameTests only: rolls the zoo's reports over to {@code day}. */
+    public void rollDayForTest(Zoo zoo, long day) {
+        zoo.stats().rollDay(day);
+        zoo.reports().rollDay(day, zoo.ledger().balance());
     }
 
     /** A visitor looked around: cleanliness moves a small step towards what it saw. */
@@ -770,13 +825,21 @@ public final class ZooManager {
     }
 
     public void recordRefusal(Zoo zoo, int visitors) {
+        rollDay(zoo);
         zoo.stats().refusedAdmissions += visitors;
+        zoo.reports().history().today().refusals += visitors;
         data.setDirty();
         fireChanged(zoo);
     }
 
     /** A visitor has left: satisfaction moves a small step towards their final mood, reputation follows slowly. */
-    public void recordDeparture(Zoo zoo, double visitorSatisfaction) {
+    public void recordDeparture(Zoo zoo, double visitorSatisfaction, long visitTicks) {
+        rollDay(zoo);
+        com.zoocraft.core.report.DayRecord today = zoo.reports().history().today();
+        today.departures++;
+        today.satisfactionTotal += Math.round(visitorSatisfaction);
+        today.visitTicks += Math.max(0, visitTicks);
+        zoo.reports().recommendations().add(visitorSatisfaction);
         double satisfaction = Ratings.blend(zoo.satisfaction(), visitorSatisfaction, Ratings.SATISFACTION_WEIGHT);
         zoo.setSatisfaction((float) satisfaction);
         zoo.setReputation((float) Ratings.blend(zoo.reputation(), satisfaction, Ratings.REPUTATION_WEIGHT));
@@ -806,6 +869,7 @@ public final class ZooManager {
             tag.getCompound("ledger").remove("totalShopSales");
             tag.getCompound("stats").remove("litterCollected");
             tag.getCompound("stats").remove("cleanliness");
+            tag.remove("reports");
         }
         Zoo copy = Zoo.CODEC.parse(net.minecraft.nbt.NbtOps.INSTANCE, tag).getOrThrow();
         data.remove(zoo);

@@ -33,7 +33,7 @@ public final class Admission {
             if (member.admitted()) {
                 continue;
             }
-            LedgerResult result = zoos.chargeAdmission(zoo, member.visitId(), price);
+            LedgerResult result = zoos.chargeAdmission(zoo, member.visitId(), price, member.profile());
             if (result == LedgerResult.APPLIED) {
                 member.markAdmitted(price);
             } else if (result == LedgerResult.DUPLICATE) {
