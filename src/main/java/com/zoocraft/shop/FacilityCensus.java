@@ -35,6 +35,7 @@ public final class FacilityCensus {
     /** How long a "stock container removed" alert stays on the dashboard: one in-game day. */
     private static final long REMOVED_ALERT_TICKS = 24000L;
     private static final Map<UUID, FacilitySnapshot> SNAPSHOTS = new HashMap<>();
+    private static final java.util.Set<UUID> FROZEN = new java.util.HashSet<>();
 
     private FacilityCensus() {
     }
@@ -47,6 +48,11 @@ public final class FacilityCensus {
     public static FacilitySnapshot of(Zoo zoo, ServerLevel level) {
         FacilitySnapshot snapshot = SNAPSHOTS.get(zoo.id());
         return snapshot != null ? snapshot : refresh(zoo, level);
+    }
+
+    /** GameTests only: stops the timer refreshing this zoo, so a deliberately stale snapshot stays stale. */
+    public static void freezeForTest(Zoo zoo) {
+        FROZEN.add(zoo.id());
     }
 
     /** GameTests only: drops the zoo's snapshot, as if the server had just started. */
@@ -62,7 +68,7 @@ public final class FacilityCensus {
         for (Zoo zoo : ZooManager.get(server).all()) {
             // Offset from the animal census so the two don't land on the same tick.
             // Every zoo is checked, because bins are found by looking rather than registered.
-            if (Math.floorMod(tick + zoo.id().hashCode() * 7L + interval / 2, interval) != 0) {
+            if (FROZEN.contains(zoo.id()) || Math.floorMod(tick + zoo.id().hashCode() * 7L + interval / 2, interval) != 0) {
                 continue;
             }
             ServerLevel level = server.getLevel(zoo.dimension());
@@ -132,5 +138,6 @@ public final class FacilityCensus {
     @SubscribeEvent
     static void onServerStopped(ServerStoppedEvent event) {
         SNAPSHOTS.clear();
+        FROZEN.clear();
     }
 }

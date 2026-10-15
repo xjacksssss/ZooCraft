@@ -113,6 +113,7 @@ public final class NeedsGameTests {
     @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1200)
     public static void soldOutShopIsTriedOnceThenLeftAlone(GameTestHelper helper) {
         Scene s = scene(helper, Items.BREAD, 5, 10, 70);
+        FacilityCensus.freezeForTest(s.zoo());
         ((Container) helper.getBlockEntity(CHEST)).clearContent(); // the cached snapshot still says there is bread
         helper.succeedWhen(() -> {
             helper.assertTrue(s.zoo().shops().getFirst().stats().missedToday(TestShops.BREAD) >= 1, "no missed sale yet");

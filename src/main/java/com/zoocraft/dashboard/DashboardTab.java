@@ -5,6 +5,8 @@ public enum DashboardTab {
     OVERVIEW,
     ANIMALS,
     SHOPS,
+    VISITORS,
+    FINANCES,
     SETTINGS;
 
     public static DashboardTab byOrdinal(int ordinal) {

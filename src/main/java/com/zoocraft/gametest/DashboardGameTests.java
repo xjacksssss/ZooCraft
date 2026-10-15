@@ -20,6 +20,8 @@ import net.minecraft.world.item.Items;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
+import java.util.List;
+
 @GameTestHolder(ZooCraft.MOD_ID)
 @PrefixGameTestTemplate(false)
 public final class DashboardGameTests {
@@ -131,6 +133,60 @@ public final class DashboardGameTests {
         helper.assertFalse(DashboardService.handle(s.owner(), action(s.zoo(), DashboardAction.SHOP_PRICE, 3, "not-a-uuid|x")).success(),
                 "garbage shop ID accepted");
         TestZoos.cleanUp(helper, s.owner(), s.zoo());
+        helper.succeed();
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR)
+    public static void visitorsAndFinancesTabsCarryTheirPanels(GameTestHelper helper) {
+        TestShops.Setup s = TestShops.setUp(helper, "Panels");
+        s.zoos().chargeAdmission(s.zoo(), java.util.UUID.randomUUID(), 3, com.zoocraft.core.visitor.VisitorProfile.GENERAL);
+        s.zoos().sell(helper.getLevel(), s.zoo(), s.shop().id(), "sale:p:0", TestShops.BREAD, 10, "Test");
+
+        DashboardSnapshot visitors = DashboardService.snapshot(s.owner(), s.zoo(), DashboardTab.VISITORS);
+        helper.assertTrue(visitors.visitors().arrivals() == 1 && visitors.visitors().general() == 1, "visitor panel wrong: " + visitors.visitors());
+        helper.assertTrue(visitors.shops().isEmpty() && visitors.finances().equals(DashboardSnapshot.FinancePanel.EMPTY), "visitors tab carried other data");
+
+        DashboardSnapshot finances = DashboardService.snapshot(s.owner(), s.zoo(), DashboardTab.FINANCES);
+        DashboardSnapshot.FinancePanel panel = finances.finances();
+        helper.assertTrue(panel.admissionToday() == 3 && panel.shopToday() == 2, "today's income wrong: " + panel);
+        helper.assertTrue(!panel.days().isEmpty() && panel.days().size() <= 14, "day bars: " + panel.days().size());
+        helper.assertTrue(panel.days().getLast().admission() == 3, "the last bar should be today");
+        helper.assertTrue(panel.shops().size() == 1 && panel.shops().getFirst().today() == 2, "shop revenue missing");
+        helper.assertTrue(!panel.recent().isEmpty(), "no recent transactions");
+
+        DashboardSnapshot overview = DashboardService.snapshot(s.owner(), s.zoo(), DashboardTab.OVERVIEW);
+        helper.assertTrue(overview.visitors().equals(DashboardSnapshot.VisitorPanel.EMPTY)
+                && overview.finances().equals(DashboardSnapshot.FinancePanel.EMPTY), "overview carried panels");
+        TestZoos.cleanUp(helper, s.owner(), s.zoo());
+        helper.succeed();
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR)
+    public static void soldOutStockBecomesAdviceNamingShopAndItem(GameTestHelper helper) {
+        TestShops.Setup s = TestShops.setUp(helper, "Advice");
+        ((net.minecraft.world.Container) helper.getBlockEntity(TestShops.CHEST)).clearContent();
+        s.zoos().sell(helper.getLevel(), s.zoo(), s.shop().id(), "sale:a:0", TestShops.BREAD, 10, "Test");
+        s.zoos().sell(helper.getLevel(), s.zoo(), s.shop().id(), "sale:a:1", TestShops.BREAD, 10, "Test");
+        List<String> advice = DashboardService.snapshot(s.owner(), s.zoo(), DashboardTab.OVERVIEW).advice().stream()
+                .map(c -> c.getString()).toList();
+        String expected = s.shop().name() + " ran out of Bread. 2 visitors left without buying.";
+        helper.assertTrue(advice.contains(expected), "expected '" + expected + "' in " + advice);
+        TestZoos.cleanUp(helper, s.owner(), s.zoo());
+        helper.succeed();
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR)
+    public static void adviceAboutARemovedToiletIsDropped(GameTestHelper helper) {
+        ServerPlayer owner = TestZoos.player(helper, "Owner");
+        ZooManager zoos = TestZoos.manager(helper);
+        Zoo zoo = TestZoos.create(helper, owner, "Gone Toilet", TestZoos.rectangle(helper, 2, 2, 29, 29));
+        String gone = java.util.UUID.randomUUID().toString();
+        zoos.recordComment(zoo, "toilet_queue", gone);
+        DashboardSnapshot overview = DashboardService.snapshot(owner, zoo, DashboardTab.OVERVIEW);
+        helper.assertTrue(overview.advice().stream().noneMatch(c -> c.getString().contains(gone) || c.getString().contains("toilet at")),
+                "advice about a removed toilet: " + overview.advice());
+        helper.assertTrue(overview.recommendSample() == 0, "no visitors have left yet, so there is no recommendation sample");
+        TestZoos.cleanUp(helper, owner, zoo);
         helper.succeed();
     }
 }

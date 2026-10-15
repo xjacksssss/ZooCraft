@@ -6,6 +6,7 @@ import com.zoocraft.animal.AnimalCensus;
 import com.zoocraft.animal.Exhibit;
 import com.zoocraft.animal.ZooCensus;
 import com.zoocraft.config.ZooConfig;
+import com.zoocraft.core.report.DayRecord;
 import com.zoocraft.core.shop.ProductCategory;
 import com.zoocraft.feedback.CommentType;
 import com.zoocraft.network.DashboardPayloads;
@@ -57,7 +58,11 @@ import java.util.UUID;
 @EventBusSubscriber(modid = ZooCraft.MOD_ID)
 public final class DashboardService {
     private static final int REFRESH_TICKS = 20;
-    private static final int TOP_COMMENTS = 6;
+    private static final int MAX_COMMENTS = 24;
+    private static final int OVERVIEW_ADVICE = 5;
+    private static final int ALL_ADVICE = 20;
+    private static final int CHART_DAYS = 14;
+    private static final int RECENT_TRANSACTIONS = 8;
     private static final int MAX_PRODUCTS = 64;
     private static final int HOTSPOT_CELL = 16;
     private static final int HOTSPOT_MIN_UNITS = 3;
@@ -263,9 +268,10 @@ public final class DashboardService {
         }
         exhibits.sort(Comparator.comparingInt(DashboardSnapshot.ExhibitLine::views).reversed());
 
-        List<DashboardSnapshot.CommentLine> comments = zoo.stats().commentTally().entrySet().stream()
+        // Everything visitors said today, for the Visitors tab; the Overview shows advice instead.
+        List<DashboardSnapshot.CommentLine> comments = tab != DashboardTab.VISITORS ? List.of() : zoo.stats().commentTally().entrySet().stream()
                 .sorted(Map.Entry.<String, Integer>comparingByValue().reversed())
-                .limit(TOP_COMMENTS)
+                .limit(MAX_COMMENTS)
                 .map(e -> {
                     CommentType type = CommentType.byKey(e.getKey());
                     Component text = type == null ? Component.literal(e.getKey()) : Component.translatable(type.translationKey());
@@ -304,7 +310,36 @@ public final class DashboardService {
                 zoo.stats().attendanceToday(), zoo.stats().totalAttendance(),
                 zoo.stats().refusedAdmissions(), VisitorTracker.count(zoo.id()), zoo.satisfaction(), zoo.reputation(),
                 (float) zoo.stats().cleanliness(), zoo.stats().litterCollected(),
-                alerts, comments, species, exhibits, gates, managers, shops, toilets);
+                alerts, comments, species, exhibits, gates, managers, shops, toilets,
+                tab == DashboardTab.OVERVIEW || tab == DashboardTab.VISITORS
+                        ? AdviceBuilder.build(zoo, tab == DashboardTab.OVERVIEW ? OVERVIEW_ADVICE : ALL_ADVICE) : List.of(),
+                zoo.reports().recommendations().recommended(), zoo.reports().recommendations().size(),
+                tab == DashboardTab.VISITORS ? visitorPanel(zoo) : DashboardSnapshot.VisitorPanel.EMPTY,
+                tab == DashboardTab.FINANCES ? financePanel(zoo) : DashboardSnapshot.FinancePanel.EMPTY);
+    }
+
+    private static DashboardSnapshot.VisitorPanel visitorPanel(Zoo zoo) {
+        DayRecord today = zoo.reports().history().today();
+        Map<String, Integer> tally = zoo.stats().commentTally();
+        double minutes = today.departures == 0 ? 0 : today.visitTicks / (double) today.departures / 20.0 / 60.0;
+        double spend = today.arrivals == 0 ? 0 : today.spending / (double) today.arrivals;
+        return new DashboardSnapshot.VisitorPanel((int) today.arrivals, (int) today.refusals, (int) today.departures, minutes, spend,
+                (int) today.budgetVisitors, (int) today.enthusiastVisitors, (int) today.generalVisitors, (int) today.meals,
+                tally.getOrDefault(CommentType.HUNGRY_NO_FOOD.key(), 0), (int) today.toiletVisits, tally.getOrDefault(CommentType.NO_TOILET.key(), 0));
+    }
+
+    private static DashboardSnapshot.FinancePanel financePanel(Zoo zoo) {
+        DayRecord today = zoo.reports().history().today();
+        List<DashboardSnapshot.DayBar> days = zoo.reports().history().lastDays(CHART_DAYS).stream()
+                .map(d -> new DashboardSnapshot.DayBar(d.day, d.admission, d.shopSales)).toList();
+        List<DashboardSnapshot.ShopRevenue> shops = zoo.shops().stream()
+                .map(s -> new DashboardSnapshot.ShopRevenue(s.name(), s.stats().revenueToday(), s.stats().revenueWeek(), s.stats().revenueTotal()))
+                .toList();
+        List<Component> recent = zoo.ledger().recent().stream().limit(RECENT_TRANSACTIONS)
+                .map(t -> (Component) Component.translatable("zoocraft.transaction." + t.type().name().toLowerCase(java.util.Locale.ROOT),
+                        t.type().sign() > 0 ? "+" + t.amount() : "-" + t.amount(), t.actor()))
+                .toList();
+        return new DashboardSnapshot.FinancePanel(today.admission, today.shopSales, today.deposits, today.withdrawals, days, shops, recent);
     }
 
     /**

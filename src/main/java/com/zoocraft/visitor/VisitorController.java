@@ -37,6 +37,8 @@ public final class VisitorController {
     static final long QUEUE_WAIT_TICKS = 20 * 20;
     static final long EXIT_WALK_TICKS = 20 * 20;
     static final double LOW_SATISFACTION = 15;
+    static final double EXHIBIT_ARRIVAL = 2.0;
+    static final double ERRAND_ARRIVAL = 1.5;
     /** Interest lost per step while nothing interesting happens (about six minutes from full). */
     static final double INTEREST_DECAY_PER_STEP = 100.0 / (6 * 60 * 20 / STEP);
 
@@ -263,7 +265,9 @@ public final class VisitorController {
         if (now < lingerUntil) {
             return;
         }
-        if (target != null && !closeTo(target, 2.0)) {
+        // Shops, toilets and bins must be reached properly; from 2 blocks away a visitor could use one through a wall.
+        double arrival = errands.active() ? ERRAND_ARRIVAL : EXHIBIT_ARRIVAL;
+        if (target != null && !closeTo(target, arrival)) {
             if (walkTowards(target, now)) {
                 failedRoutes = 0;
                 target = null;
