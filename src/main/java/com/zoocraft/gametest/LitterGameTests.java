@@ -306,4 +306,26 @@ public final class LitterGameTests {
         helper.assertTrue(loaded instanceof RubbishBinBlockEntity copy && copy.fill() == 7, "fill level lost");
         helper.succeed();
     }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 100)
+    public static void pathsGoRoundBinsNotThroughThem(GameTestHelper helper) {
+        // A bin is smaller than a full block, so vanilla would call it walkable; visitors then snag on it.
+        BlockPos bin = new BlockPos(12, 2, 10);
+        helper.setBlock(bin, com.zoocraft.registry.ZooBlocks.RUBBISH_BIN.get());
+        com.zoocraft.visitor.Visitor visitor = com.zoocraft.registry.ZooEntities.VISITOR.get().create(helper.getLevel());
+        BlockPos from = helper.absolutePos(new BlockPos(8, 2, 10));
+        visitor.moveTo(from.getX() + 0.5, from.getY(), from.getZ() + 0.5, 0, 0);
+        helper.getLevel().addFreshEntity(visitor);
+        helper.runAfterDelay(3, () -> {
+            net.minecraft.world.level.pathfinder.Path path = visitor.getNavigation().createPath(helper.absolutePos(new BlockPos(16, 2, 10)), 0);
+            helper.assertTrue(path != null && path.canReach(), "no path past the bin");
+            BlockPos absoluteBin = helper.absolutePos(bin);
+            for (int i = 0; i < path.getNodeCount(); i++) {
+                helper.assertFalse(path.getNodePos(i).getX() == absoluteBin.getX() && path.getNodePos(i).getZ() == absoluteBin.getZ(),
+                        "the path goes through the bin");
+            }
+            visitor.discard();
+            helper.succeed();
+        });
+    }
 }

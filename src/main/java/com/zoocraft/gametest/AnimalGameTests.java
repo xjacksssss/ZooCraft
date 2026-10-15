@@ -66,7 +66,7 @@ public final class AnimalGameTests {
         baby.setAge(-24000);
         helper.spawnWithNoFreeWill(EntityType.COW, at(38, 38));
         helper.spawnWithNoFreeWill(EntityType.COW, at(40, 38));
-        helper.spawnWithNoFreeWill(EntityType.PIG, at(60, 60)); // outside the structure and the zoo
+        Pig outside = helper.spawnWithNoFreeWill(EntityType.PIG, at(60, 60)); // outside the structure and the zoo
 
         ZooCensus census = AnimalCensus.refresh(zoo, helper.getLevel());
         helper.assertTrue(census.animals().size() == 4, "expected 4 animals, got " + census.animals().size());
@@ -78,6 +78,7 @@ public final class AnimalGameTests {
         UUID firstId = census.exhibits().getFirst().id();
         ZooCensus again = AnimalCensus.refresh(zoo, helper.getLevel());
         helper.assertTrue(again.exhibit(firstId).isPresent(), "exhibit identity not kept between censuses");
+        outside.discard(); // it stands in a neighbouring test's space
 
         TestZoos.cleanUp(helper, owner, zoo);
         helper.succeed();
