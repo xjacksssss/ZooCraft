@@ -12,3 +12,4 @@ run-atm10-gradle.log
 run-server/
 run-client2/
 tools/perf/results/
+tools/perf/__pycache__/

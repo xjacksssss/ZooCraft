@@ -154,7 +154,7 @@ public final class PerfGameTests {
         helper.succeed();
     }
 
-    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 400)
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 400, batch = "config")
     public static void changingTheStepKeepsNeedsRisingAtTheSameRate(GameTestHelper helper) {
         Setup setup = openZoo(helper, "Stepped");
         Visitor visitor = exploringVisitor(helper, setup, 30, 24);
@@ -206,7 +206,7 @@ public final class PerfGameTests {
         });
     }
 
-    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 100)
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 100, batch = "config")
     public static void followRangeComesFromConfig(GameTestHelper helper) {
         Visitor visitor = ZooEntities.VISITOR.get().create(helper.getLevel());
         BlockPos from = helper.absolutePos(new BlockPos(2, 2, 2));
@@ -253,7 +253,7 @@ public final class PerfGameTests {
         });
     }
 
-    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1200)
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1200, batch = "config")
     public static void throttledShortcutsWalkAsFastAsEveryTick(GameTestHelper helper) {
         ShortcutMode[] modes = {ShortcutMode.EVERY_TICK, ShortcutMode.EVERY_NODE, ShortcutMode.OFF};
         ShortcutMode original = ZooConfig.PATH_SHORTCUT_MODE.get();
@@ -304,7 +304,7 @@ public final class PerfGameTests {
         });
     }
 
-    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 200)
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 200, batch = "config")
     public static void aNewPathGetsAShortcutAttemptStraightAway(GameTestHelper helper) {
         ShortcutMode original = ZooConfig.PATH_SHORTCUT_MODE.get();
         ZooConfig.PATH_SHORTCUT_MODE.set(ShortcutMode.EVERY_NODE);

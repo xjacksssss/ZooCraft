@@ -41,3 +41,14 @@ Stop the server (`python tools/rcon.py stop`) and run `python tools/perf/perf_wo
 - `ZooCraft ms` is the `ZOOCRAFT_TOTAL` timer: time inside ZooCraft-timed code, counted once even when timers nest.
   It includes SmartBrainLib's path following, because visitors cause it.
 - The tick percentiles come from vanilla `/tick query` (100-tick samples); the table keeps the worst of twelve samples.
+
+## Exhibit coverage
+
+```bash
+python coverage.py cov "Big Park" 100 20
+```
+
+Spawns 100 visitors, then runs 20 minutes and compares each exhibit's view count before and after (from
+`/zoo debug perf exhibits`, which writes `logs/zoocraft-exhibits.csv`). It reports the share of exhibits viewed during the
+run, the median and maximum views, their ratio (the spec's target is at most 4) and the longest time any visitor was stuck.
+Kill leftover visitors first (`kill @e[type=zoocraft:visitor]`): lowering the limit doesn't remove them.
