@@ -15,7 +15,7 @@ public final class ExhibitChoice {
         return Math.max(MIN_ROUTE_SCALE, Math.max(width, depth) / 4.0);
     }
 
-    /** base × unseenBonus × recentPenalty × distanceFactor × popularityFactor × crowdFactor (Phase 3 spec section 8.3). */
+    /** base Ã— unseenBonus Ã— recentPenalty Ã— distanceFactor Ã— popularityFactor Ã— crowdFactor (Phase 3 spec section 8.3). */
     public static double weight(ExhibitOption option, Set<String> seen, boolean enthusiast) {
         long unseen = option.species().stream().filter(s -> !seen.contains(s)).count();
         double weight = 1.0 + unseen * (enthusiast ? 6.0 : 3.0);
