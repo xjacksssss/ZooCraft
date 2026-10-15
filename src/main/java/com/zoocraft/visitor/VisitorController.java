@@ -279,7 +279,7 @@ public final class VisitorController {
             setPhase(VisitorPhase.LEAVING);
             return;
         }
-        if (!zoo.contains(visitor.blockPosition()) && !nearAnyGate(zoo, 3.5)) {
+        if (!zoo.contains(visitor.blockPosition()) && !nearAnyGate(zoo, PathRules.GATE_AREA)) {
             // Pushed out, or the boundary moved: the visit is over and they head off from here.
             setPhase(VisitorPhase.EXITING);
             return;
@@ -361,7 +361,7 @@ public final class VisitorController {
             visitor.releaseNow(CommentType.COULD_NOT_LEAVE);
             return;
         }
-        if (!zoo.contains(visitor.blockPosition()) && !nearAnyGate(zoo, 3.5)) {
+        if (!zoo.contains(visitor.blockPosition()) && !nearAnyGate(zoo, PathRules.GATE_AREA)) {
             setPhase(VisitorPhase.EXITING);
             return;
         }

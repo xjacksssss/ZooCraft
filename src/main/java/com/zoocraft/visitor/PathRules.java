@@ -12,8 +12,12 @@ import java.util.List;
  */
 public record PathRules(@Nullable ZooShape shape, Mode mode, List<BlockPos> gateAreas) {
     public static final PathRules ANYWHERE = new PathRules(null, Mode.ANY, List.of());
-    /** Covers the gate's queue slots (up to 4 blocks out and 2 to the side), so visitors admitted from any slot can walk in. */
-    private static final double GATE_RADIUS_SQ = 5.0 * 5.0;
+    /**
+     * The area round a gate where either side may walk: it covers the queue slots (up to 4 blocks out and 2 to the side)
+     * and the overflow point 7 blocks out, plus the distance at which visitors count as having arrived there.
+     */
+    public static final double GATE_AREA = 8.0;
+    private static final double GATE_RADIUS_SQ = GATE_AREA * GATE_AREA;
 
     public enum Mode { ANY, INSIDE, OUTSIDE }
 

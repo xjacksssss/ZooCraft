@@ -280,4 +280,36 @@ public final class VisitorGameTests {
         TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
         helper.succeed();
     }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 400)
+    public static void aVisitorAdmittedFromBeyondTheQueueWalksIn(GameTestHelper helper) {
+        // Visitors who waited beyond a full queue are admitted from about 7 blocks out; they must walk in, not leave.
+        Setup setup = openZoo(helper, 0);
+        Visitor visitor = visitor(helper, setup, UUID.randomUUID(), true, 9, 24, 10);
+        visitor.testSetPhase(VisitorPhase.EXPLORING);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(visitor.phase() == VisitorPhase.EXPLORING, "sent away after paying: " + visitor.phase());
+            helper.assertTrue(setup.zoo().contains(visitor.blockPosition()), "not inside yet");
+            visitor.discard();
+            TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 100)
+    public static void aVisitorUnloadedWithItsChunkFreesItsPlaces(GameTestHelper helper) {
+        Setup setup = openZoo(helper, 0);
+        Visitor visitor = visitor(helper, setup, UUID.randomUUID(), true, 30, 24, 10);
+        UUID facility = UUID.randomUUID();
+        helper.runAfterDelay(2, () -> {
+            helper.assertTrue(com.zoocraft.shop.FacilityOccupancy.tryOccupy(facility, visitor.getUUID(), helper.getLevel().getGameTime(), 1),
+                    "claim refused");
+            visitor.setRemoved(net.minecraft.world.entity.Entity.RemovalReason.UNLOADED_TO_CHUNK);
+        });
+        helper.runAfterDelay(4, () -> {
+            helper.assertTrue(com.zoocraft.shop.FacilityOccupancy.count(facility, helper.getLevel().getGameTime()) == 0,
+                    "place still held after the visitor was unloaded");
+            TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
+            helper.succeed();
+        });
+    }
 }

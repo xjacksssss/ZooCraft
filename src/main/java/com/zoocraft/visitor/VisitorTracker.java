@@ -57,6 +57,10 @@ public final class VisitorTracker {
 
     @SubscribeEvent
     static void onLeave(EntityLeaveLevelEvent event) {
+        if (!event.getLevel().isClientSide && event.getEntity() instanceof Visitor visitor) {
+            // Chunk unloads mark the entity removed without calling remove(), so places are freed here too.
+            visitor.releaseClaims();
+        }
         if (!event.getLevel().isClientSide && event.getEntity() instanceof Visitor visitor && visitor.zooId() != null) {
             Set<Visitor> set = BY_ZOO.get(visitor.zooId());
             if (set != null) {

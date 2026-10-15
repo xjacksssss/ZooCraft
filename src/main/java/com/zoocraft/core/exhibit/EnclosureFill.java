@@ -55,11 +55,16 @@ public final class EnclosureFill {
 
     /**
      * One fill per separate region: animals already inside an earlier region's floor don't start another. An exhibit
-     * whose animals are split between a pen and open land (an escaped animal nearby) keeps its pen as a pen.
+     * whose animals are split between a pen and open land (an escaped animal nearby) keeps its pen as a pen. One job
+     * fills at most twice {@code maxArea} cells in all; animals left over count as being on open land.
      */
     public static List<Enclosure> regions(FloorGrid grid, List<int[]> starts, int maxArea) {
         List<Enclosure> regions = new java.util.ArrayList<>();
+        int budget = 2 * maxArea;
         for (int[] start : starts) {
+            if (budget <= 0) {
+                break;
+            }
             boolean covered = false;
             for (Enclosure region : regions) {
                 if (region.contains(start[0], start[2])) {
@@ -68,9 +73,10 @@ public final class EnclosureFill {
                 }
             }
             if (!covered) {
-                Enclosure region = fill(grid, List.of(start), maxArea);
+                Enclosure region = fill(grid, List.of(start), Math.min(maxArea, budget));
+                budget -= region.area();
                 if (region.area() > 0) {
-                    regions.add(region);
+                    regions.add(region); // a fill cut short by the budget hit its cap, so it counts as open land
                 }
             }
         }

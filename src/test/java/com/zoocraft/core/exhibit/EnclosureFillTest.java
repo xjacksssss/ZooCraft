@@ -101,4 +101,16 @@ class EnclosureFillTest {
         assertFalse(regions.get(2).bounded());
         assertTrue(EnclosureFill.regions(g, List.of(), 200).isEmpty());
     }
+
+    @Test
+    void oneJobStaysWithinTwiceTheCap() {
+        // Ten animals far apart on open land: without a budget each would start its own capped fill.
+        List<int[]> starts = new java.util.ArrayList<>();
+        for (int i = 0; i < 10; i++) {
+            starts.add(new int[]{1000 * i, 0, 0});
+        }
+        List<Enclosure> regions = EnclosureFill.regions((x, z, y) -> 0, starts, 200);
+        int cells = regions.stream().mapToInt(Enclosure::area).sum();
+        assertTrue(cells <= 400, "filled " + cells + " cells for one job");
+    }
 }

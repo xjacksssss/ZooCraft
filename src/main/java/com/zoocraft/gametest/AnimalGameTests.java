@@ -370,4 +370,30 @@ public final class AnimalGameTests {
             helper.succeed();
         });
     }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 100)
+    public static void anOpenExhibitVisitorsReachAndSeeHasNoViewingWarning(GameTestHelper helper) {
+        // Open exhibits' spots are sampled afresh every census, so reaching yesterday's spot blocks can't be the measure.
+        ServerPlayer owner = TestZoos.player(helper, "Owner");
+        Zoo zoo = TestZoos.create(helper, owner, "Roaming", TestZoos.rectangle(helper, 2, 2, 45, 45));
+        helper.spawnWithNoFreeWill(EntityType.SHEEP, at(24, 24));
+        helper.runAfterDelay(2, () -> {
+            AnimalCensus.refresh(zoo, helper.getLevel());
+            AnimalCensus.runPendingFills(helper.getLevel().getServer(), 100);
+            Exhibit exhibit = AnimalCensus.refresh(zoo, helper.getLevel()).exhibits().getFirst();
+            helper.assertFalse(exhibit.enclosure().bounded(), "the sheep should be on open land");
+            long now = helper.getLevel().getGameTime();
+            exhibit.markReached(helper.absolutePos(at(5, 5)), now); // a spot block from an earlier census
+            exhibit.addView(now);
+            for (int i = 0; i < 12; i++) {
+                exhibit.addAttempt(now);
+            }
+            Exhibit again = AnimalCensus.refresh(zoo, helper.getLevel()).exhibits().getFirst();
+            helper.assertFalse(again.rating().warnings().contains(com.zoocraft.core.exhibit.ExhibitRating.Warning.CANT_SEE),
+                    "a reached and viewed open exhibit got the can't-see warning: " + again.rating());
+            helper.assertFalse(again.viewingProblem(now), "dashboard would say visitors can't get close");
+            TestZoos.cleanUp(helper, owner, zoo);
+            helper.succeed();
+        });
+    }
 }

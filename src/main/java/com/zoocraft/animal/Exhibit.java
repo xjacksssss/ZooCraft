@@ -249,7 +249,10 @@ public final class Exhibit {
         int area = enclosure.area();
         // Before the floor has been searched, the surroundings are unknown: no penalty.
         double natural = area == 0 ? 1.0 : (double) surroundings.natural() / area;
-        rating = ExhibitRating.rate(new ExhibitRating.Input(viewingSpots.size(), spotsReachedSince(now - DAY_TICKS), viewsToday(now) > 0,
+        // An open exhibit's spots are sampled afresh every census, so its access is whether visitors got there at all.
+        int reached = enclosure.bounded() ? spotsReachedSince(now - DAY_TICKS)
+                : lastReached >= 0 && lastReached >= now - DAY_TICKS ? viewingSpots.size() : 0;
+        rating = ExhibitRating.rate(new ExhibitRating.Input(viewingSpots.size(), reached, viewsToday(now) > 0,
                 attemptsToday(now), species.size(), !enclosure.bounded(), area, animalWeight, natural, surroundings.waterOrLeaves()));
     }
 
