@@ -46,7 +46,7 @@ public final class FacilityCensus {
         long tick = server.getTickCount();
         for (Zoo zoo : ZooManager.get(server).all()) {
             // Offset from the animal census so the two don't land on the same tick.
-            if (zoo.shops().isEmpty() || Math.floorMod(tick + zoo.id().hashCode() * 7L + interval / 2, interval) != 0) {
+            if ((zoo.shops().isEmpty() && zoo.toilets().isEmpty()) || Math.floorMod(tick + zoo.id().hashCode() * 7L + interval / 2, interval) != 0) {
                 continue;
             }
             ServerLevel level = server.getLevel(zoo.dimension());
@@ -79,7 +79,9 @@ public final class FacilityCensus {
             boolean usable = shop.open() && !zoo.isDetached(shop.counter());
             shops.add(new FacilitySnapshot.ShopState(shop.id(), shop.counter(), usable, List.copyOf(products)));
         }
-        FacilitySnapshot snapshot = new FacilitySnapshot(now, List.copyOf(shops));
+        List<FacilitySnapshot.ToiletState> toilets = zoo.toilets().stream()
+                .map(t -> new FacilitySnapshot.ToiletState(t.id(), t.pos(), !zoo.isDetached(t.pos()))).toList();
+        FacilitySnapshot snapshot = new FacilitySnapshot(now, List.copyOf(shops), toilets);
         SNAPSHOTS.put(zoo.id(), snapshot);
         return snapshot;
     }

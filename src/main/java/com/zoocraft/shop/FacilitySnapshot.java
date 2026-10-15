@@ -12,8 +12,8 @@ import java.util.UUID;
  * A zoo's facilities as of the last facility census (Phase 2 spec section 4.4). Visitors choose errands from this
  * only; the real stock is checked again at the moment of a sale.
  */
-public record FacilitySnapshot(long takenAt, List<ShopState> shops) {
-    public static final FacilitySnapshot EMPTY = new FacilitySnapshot(-1, List.of());
+public record FacilitySnapshot(long takenAt, List<ShopState> shops, List<ToiletState> toilets) {
+    public static final FacilitySnapshot EMPTY = new FacilitySnapshot(-1, List.of(), List.of());
 
     /** @param usable open and its counter still inside the boundary */
     public record ShopState(UUID shopId, BlockPos counter, boolean usable, List<Product> products) {
@@ -25,6 +25,10 @@ public record FacilitySnapshot(long takenAt, List<ShopState> shops) {
 
     /** One sellable item in stock, with its current price. */
     public record Product(String itemId, ProductCategory category, int count, int price) {
+    }
+
+    /** @param usable still inside the boundary */
+    public record ToiletState(UUID toiletId, BlockPos pos, boolean usable) {
     }
 
     public Optional<ShopState> shop(UUID shopId) {

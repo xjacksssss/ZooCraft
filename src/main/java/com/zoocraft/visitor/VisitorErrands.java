@@ -18,6 +18,7 @@ import com.zoocraft.shop.FacilityCensus;
 import com.zoocraft.shop.FacilityReach;
 import com.zoocraft.shop.FacilitySnapshot;
 import com.zoocraft.shop.ProductCatalog;
+import com.zoocraft.shop.ToiletOccupancy;
 import com.zoocraft.zoo.Shop;
 import com.zoocraft.zoo.Zoo;
 import com.zoocraft.zoo.ZooManager;
@@ -58,6 +59,10 @@ public final class VisitorErrands {
     static final double URGENT_LOSS_PER_STEP = 1.0 / (10 * 20 / VisitorController.STEP);
     static final Set<ProductCategory> REFRESHMENTS = Set.of(ProductCategory.FOOD, ProductCategory.DRINK);
     static final Set<ProductCategory> SOUVENIRS = Set.of(ProductCategory.SOUVENIR);
+    static final long TOILET_USE_TICKS = 6 * 20;
+    static final long TOILET_WAIT_TICKS = 20 * 20;
+    /** While waiting for a free toilet, check again this often. */
+    static final long TOILET_RETRY_TICKS = 40;
 
     /** The next thing to do: walk to {@code target}, or leave when the errand is {@link Errand#LEAVE}. */
     record Choice(Errand errand, Optional<BlockPos> target) {
@@ -71,6 +76,13 @@ public final class VisitorErrands {
     private long foodCooldownUntil;
     private long toiletCooldownUntil;
     private boolean wantsToGoHome;
+
+    // The toilet errand: which toilet, and whether the visitor is using it or waiting for a place.
+    private @Nullable UUID toiletId;
+    private @Nullable BlockPos toiletPos;
+    private final Set<UUID> triedToilets = new HashSet<>();
+    private long usingUntil;
+    private long waitingSince;
 
     // What the visitor is holding: something to eat or drink, or a souvenir to carry.
     private long holdUntil;
@@ -127,6 +139,10 @@ public final class VisitorErrands {
     // ------------------------------------------------------------------ choosing
 
     Choice choose(Zoo zoo, ServerLevel level, long now, boolean endingByChoice) {
+        if (current == Errand.TOILET && toiletPos != null && (usingUntil != 0 || waitingSince != 0)) {
+            // Still at the toilet, using it or waiting for a place: stay put.
+            return new Choice(Errand.TOILET, Optional.of(toiletPos));
+        }
         FacilitySnapshot snapshot = FacilityCensus.cached(zoo);
         int threshold = ZooConfig.NEED_THRESHOLD.get();
         // A visitor still eating its last purchase isn't hungry for another.
@@ -161,7 +177,14 @@ public final class VisitorErrands {
                 return new Choice(Errand.LEAVE, Optional.empty());
             }
             case TOILET -> {
-                // Toilets arrive in a later task; until then the visitor carries on with exhibits.
+                Optional<FacilitySnapshot.ToiletState> toilet = nearestToilet(zoo, snapshot, now);
+                if (toilet.isPresent()) {
+                    current = Errand.TOILET;
+                    toiletId = toilet.get().toiletId();
+                    toiletPos = toilet.get().pos();
+                    return new Choice(Errand.TOILET, Optional.of(toiletPos));
+                }
+                toiletCooldownUntil = now + COOLDOWN_TICKS;
             }
             case EXHIBIT -> {
             }
@@ -170,9 +193,14 @@ public final class VisitorErrands {
         return new Choice(Errand.EXHIBIT, VisitorExploration.chooseTarget(visitor, zoo, level));
     }
 
-    /** Toilets are added in M6 task 4. */
     private boolean toiletAvailable(Zoo zoo, FacilitySnapshot snapshot, long now) {
-        return false;
+        return snapshot.toilets().stream().anyMatch(t -> t.usable() && !FacilityReach.isUnreachable(zoo, t.toiletId(), now));
+    }
+
+    private Optional<FacilitySnapshot.ToiletState> nearestToilet(Zoo zoo, FacilitySnapshot snapshot, long now) {
+        return snapshot.toilets().stream()
+                .filter(t -> t.usable() && !triedToilets.contains(t.toiletId()) && !FacilityReach.isUnreachable(zoo, t.toiletId(), now))
+                .min(java.util.Comparator.comparingDouble(t -> t.pos().distSqr(visitor.blockPosition())));
     }
 
     /** A usable, reachable shop has something in stock in one of the categories. */
@@ -264,8 +292,55 @@ public final class VisitorErrands {
             buy(zoo, level, now);
             return SERVE_TICKS;
         }
+        if (current == Errand.TOILET && toiletId != null) {
+            return atToilet(zoo, now);
+        }
         current = Errand.EXHIBIT;
         return 0;
+    }
+
+    /** Uses the toilet if there is room, otherwise waits a while, then tries another or complains (spec 8.4). */
+    private long atToilet(Zoo zoo, long now) {
+        UUID toilet = toiletId;
+        if (usingUntil != 0) {
+            if (now < usingUntil) {
+                ToiletOccupancy.tryOccupy(toilet, visitor.getUUID(), now, Integer.MAX_VALUE);
+                return usingUntil - now;
+            }
+            visitor.needs.useToilet();
+            ToiletOccupancy.release(toilet, visitor.getUUID());
+            FacilityReach.clear(zoo, toilet);
+            finishToiletErrand();
+            return 20;
+        }
+        if (ToiletOccupancy.tryOccupy(toilet, visitor.getUUID(), now, ZooConfig.TOILET_CAPACITY.get())) {
+            usingUntil = now + TOILET_USE_TICKS;
+            waitingSince = 0;
+            return TOILET_USE_TICKS;
+        }
+        if (waitingSince == 0) {
+            waitingSince = now;
+        }
+        if (now - waitingSince < TOILET_WAIT_TICKS) {
+            return TOILET_RETRY_TICKS;
+        }
+        // Waited long enough: try another toilet, or give up for a while.
+        triedToilets.add(toilet);
+        waitingSince = 0;
+        current = Errand.EXHIBIT;
+        if (nearestToilet(zoo, FacilityCensus.cached(zoo), now).isEmpty()) {
+            visitor.remark(CommentType.TOILET_QUEUE);
+            toiletCooldownUntil = now + COOLDOWN_TICKS;
+            triedToilets.clear();
+        }
+        return 0;
+    }
+
+    private void finishToiletErrand() {
+        current = Errand.EXHIBIT;
+        usingUntil = 0;
+        waitingSince = 0;
+        triedToilets.clear();
     }
 
     private void buy(Zoo zoo, ServerLevel level, long now) {
@@ -342,6 +417,16 @@ public final class VisitorErrands {
             FacilityReach.markUnreachable(zoo, shopId, now + UNREACHABLE_TICKS);
             visitor.remark(CommentType.CANT_REACH_SHOP);
             retryOrGiveUp(errand, shopId, now);
+        } else if (errand == Errand.TOILET && toiletId != null) {
+            FacilityReach.markUnreachable(zoo, toiletId, now + UNREACHABLE_TICKS);
+            visitor.remark(CommentType.CANT_REACH_TOILET);
+            triedToilets.add(toiletId);
+            usingUntil = 0;
+            waitingSince = 0;
+            if (nearestToilet(zoo, FacilityCensus.cached(zoo), now).isEmpty()) {
+                toiletCooldownUntil = now + COOLDOWN_TICKS;
+                triedToilets.clear();
+            }
         }
     }
 

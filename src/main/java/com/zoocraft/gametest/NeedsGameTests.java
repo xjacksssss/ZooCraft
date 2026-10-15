@@ -7,6 +7,9 @@ import com.zoocraft.core.visitor.VisitorProfile;
 import com.zoocraft.feedback.CommentType;
 import com.zoocraft.registry.ZooEntities;
 import com.zoocraft.shop.FacilityCensus;
+import com.zoocraft.shop.FacilityReach;
+import com.zoocraft.shop.ToiletOccupancy;
+import net.minecraft.world.level.block.Blocks;
 import com.zoocraft.visitor.Visitor;
 import com.zoocraft.visitor.VisitorPhase;
 import com.zoocraft.zoo.Zoo;
@@ -149,6 +152,78 @@ public final class NeedsGameTests {
             s.visitor().discard();
             TestZoos.cleanUp(helper, s.owner(), s.zoo());
         });
+    }
+
+    private static final BlockPos TOILET = new BlockPos(30, 2, 24);
+
+    /** The zoo with no shop and one toilet at TOILET; the visitor badly needs it. */
+    private static Scene toiletScene(GameTestHelper helper) {
+        Scene s = scene(helper, Items.BREAD, -1, 10, 0);
+        TestShops.assertOk(helper, s.zoos().createToilet(s.owner(), helper.getLevel(), helper.absolutePos(TOILET)));
+        FacilityCensus.refresh(s.zoo(), helper.getLevel());
+        s.visitor().testSetNeeds(0, 70);
+        return s;
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1200)
+    public static void reachableToiletIsUsed(GameTestHelper helper) {
+        Scene s = toiletScene(helper);
+        helper.succeedWhen(() -> {
+            helper.assertTrue(s.visitor().needs().toilet() < 5, "toilet need still " + s.visitor().needs().toilet()
+                    + ", errand " + s.visitor().errands().current());
+            s.visitor().discard();
+            TestZoos.cleanUp(helper, s.owner(), s.zoo());
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 2600)
+    public static void walledOffToiletIsReportedUnreachable(GameTestHelper helper) {
+        for (int x = 29; x <= 31; x++) {
+            for (int z = 23; z <= 25; z++) {
+                for (int y = 2; y <= 4; y++) {
+                    if (x != 30 || z != 24 || y == 4) {
+                        helper.setBlock(new BlockPos(x, y, z), Blocks.STONE);
+                    }
+                }
+            }
+        }
+        Scene s = toiletScene(helper);
+        UUID toilet = s.zoo().toilets().getFirst().id();
+        helper.succeedWhen(() -> {
+            helper.assertTrue(tally(s.zoo(), CommentType.CANT_REACH_TOILET) >= 1, "no complaint yet");
+            helper.assertTrue(FacilityReach.isUnreachable(s.zoo(), toilet, helper.getLevel().getGameTime()), "toilet not marked unreachable");
+            helper.assertTrue(s.visitor().needs().toilet() >= 70, "a walled-off toilet was used");
+            s.visitor().discard();
+            TestZoos.cleanUp(helper, s.owner(), s.zoo());
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 1200)
+    public static void fullToiletMakesVisitorsComplainAboutTheQueue(GameTestHelper helper) {
+        Scene s = toiletScene(helper);
+        UUID toilet = s.zoo().toilets().getFirst().id();
+        UUID first = UUID.randomUUID(), second = UUID.randomUUID();
+        helper.onEachTick(() -> {
+            long now = helper.getLevel().getGameTime();
+            ToiletOccupancy.tryOccupy(toilet, first, now, 2);
+            ToiletOccupancy.tryOccupy(toilet, second, now, 2);
+        });
+        helper.succeedWhen(() -> {
+            helper.assertTrue(tally(s.zoo(), CommentType.TOILET_QUEUE) == 1, "no queue complaint yet");
+            helper.assertTrue(s.visitor().needs().toilet() >= 70, "got into a full toilet");
+            s.visitor().discard();
+            TestZoos.cleanUp(helper, s.owner(), s.zoo());
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR)
+    public static void toiletOccupantsThatStopRenewingExpire(GameTestHelper helper) {
+        UUID toilet = UUID.randomUUID(), a = UUID.randomUUID(), b = UUID.randomUUID();
+        helper.assertTrue(ToiletOccupancy.tryOccupy(toilet, a, 1000, 1), "empty toilet refused");
+        helper.assertFalse(ToiletOccupancy.tryOccupy(toilet, b, 1100, 1), "full toilet accepted a second visitor");
+        helper.assertTrue(ToiletOccupancy.tryOccupy(toilet, b, 1000 + ToiletOccupancy.EXPIRY_TICKS + 1, 1), "stale occupant never expired");
+        ToiletOccupancy.release(toilet, b);
+        helper.succeed();
     }
 
     @GameTest(template = GameTestTemplates.FLOOR)
