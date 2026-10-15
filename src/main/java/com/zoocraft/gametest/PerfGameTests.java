@@ -371,6 +371,32 @@ public final class PerfGameTests {
         });
     }
 
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 500)
+    public static void visitorsGiveUpQuicklyOnSpotsTheyCantReach(GameTestHelper helper) {
+        // A cow in a sealed stone room: every viewing spot (up to 5.5 blocks from the cow) is inside the walls.
+        for (int x = 26; x <= 39; x++) {
+            for (int z = 26; z <= 39; z++) {
+                if (x == 26 || x == 39 || z == 26 || z == 39) {
+                    for (int y = 2; y <= 4; y++) {
+                        helper.setBlock(new BlockPos(x, y, z), net.minecraft.world.level.block.Blocks.STONE);
+                    }
+                }
+            }
+        }
+        helper.spawnWithNoFreeWill(EntityType.COW, new BlockPos(32, 2, 32));
+        Setup setup = openZoo(helper, "Sealed");
+        Visitor visitor = exploringVisitor(helper, setup, 20, 24);
+        helper.runAfterDelay(300, () -> {
+            long now = helper.getLevel().getGameTime();
+            List<com.zoocraft.animal.Exhibit> exhibits = com.zoocraft.animal.AnimalCensus.cached(setup.zoo()).exhibits();
+            helper.assertTrue(!exhibits.isEmpty(), "the cow wasn't counted");
+            helper.assertTrue(exhibits.getFirst().isUnreachable(now), "after 15 seconds the visitor still hasn't given up on the sealed room");
+            visitor.discard();
+            TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = GameTestTemplates.FLOOR)
     public static void recognitionReportNamesTheRule(GameTestHelper helper) {
         List<RecognitionReport.Entry> entries = RecognitionReport.run(helper.getLevel(), "minecraft");

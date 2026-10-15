@@ -32,6 +32,8 @@ public final class VisitorController {
     /** No progress for this long means the route has failed. */
     static final long NO_PROGRESS_TICKS = 30 * 20;
     static final int MAX_FAILED_ROUTES = 3;
+    /** Plans in a row that can't reach a nearby target before the route counts as failed, without waiting. */
+    static final int MISSES_BEFORE_GIVING_UP = 2;
     /** How long a visitor may spend trying to leave before it is released where it stands. */
     static final long LEAVE_SAFETY_TICKS = 60 * 20;
     static final long QUEUE_WAIT_TICKS = 20 * 20;
@@ -415,15 +417,26 @@ public final class VisitorController {
         if (!BrainUtils.hasMemory(visitor, MemoryModuleType.WALK_TARGET)) {
             BrainUtils.setMemory(visitor, MemoryModuleType.WALK_TARGET, new WalkTarget(pos, WALK_SPEED, 1));
         }
+        // A nearby target that path searches keep missing can't be reached (inside a pen, behind a wall): give up on
+        // this route now rather than after the no-progress timeout, which costs a full search every few ticks.
+        if (visitor.getNavigation() instanceof VisitorNavigation nav && nav.missesInARow(pos) >= MISSES_BEFORE_GIVING_UP) {
+            nav.forgetMisses(pos);
+            return routeFailed(now);
+        }
         if (now - lastProgressTime > NO_PROGRESS_TICKS) {
-            failedRoutes++;
-            lastProgressTime = now;
-            bestDistance = Double.MAX_VALUE;
-            visitor.getNavigation().stop();
-            BrainUtils.clearMemory(visitor, MemoryModuleType.WALK_TARGET);
-            return failedRoutes >= MAX_FAILED_ROUTES;
+            return routeFailed(now);
         }
         return false;
+    }
+
+    /** Counts a failed route and starts the next attempt afresh; true when the route has failed too often. */
+    private boolean routeFailed(long now) {
+        failedRoutes++;
+        lastProgressTime = now;
+        bestDistance = Double.MAX_VALUE;
+        visitor.getNavigation().stop();
+        BrainUtils.clearMemory(visitor, MemoryModuleType.WALK_TARGET);
+        return failedRoutes >= MAX_FAILED_ROUTES;
     }
 
     private boolean closeTo(BlockPos pos, double distance) {

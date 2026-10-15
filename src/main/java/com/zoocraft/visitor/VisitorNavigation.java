@@ -55,11 +55,43 @@ public class VisitorNavigation extends SmoothGroundNavigation {
             return result;
         } finally {
             SimulationTimers.stop(PerfSlot.VISITOR_PATHFINDING, zooId(), timer);
-            if (!targets.isEmpty() && (result == null || !result.canReach())) {
-                SimulationTimers.count(PerfSlot.VISITOR_PATH_SHORT, zooId());
-                MissedTargets.record(targets.iterator().next());
+            if (!targets.isEmpty()) {
+                BlockPos target = targets.iterator().next();
+                if (result == null || !result.canReach()) {
+                    SimulationTimers.count(PerfSlot.VISITOR_PATH_SHORT, zooId());
+                    MissedTargets.record(target);
+                    noteMiss(target);
+                } else {
+                    misses.remove(target);
+                }
             }
         }
+    }
+
+    /** Recent targets a plan couldn't reach although they were near enough for one search, with how often in a row. */
+    private final java.util.LinkedHashMap<BlockPos, Integer> misses = new java.util.LinkedHashMap<>();
+    private static final int MISSES_TRACKED = 4;
+    /** Targets nearer than this share of the search range should be reachable in one plan. */
+    private static final double NEAR_SHARE = 0.75;
+
+    private void noteMiss(BlockPos target) {
+        double near = ZooConfig.VISITOR_FOLLOW_RANGE.get() * NEAR_SHARE;
+        if (mob.distanceToSqr(target.getX() + 0.5, target.getY(), target.getZ() + 0.5) > near * near) {
+            return; // a far target gets a partial path by design
+        }
+        misses.merge(target.immutable(), 1, Integer::sum);
+        while (misses.size() > MISSES_TRACKED) {
+            misses.remove(misses.keySet().iterator().next());
+        }
+    }
+
+    /** How many plans in a row couldn't reach {@code target} although it was near enough for one search. */
+    public int missesInARow(BlockPos target) {
+        return misses.getOrDefault(target, 0);
+    }
+
+    public void forgetMisses(BlockPos target) {
+        misses.remove(target);
     }
 
     private @Nullable Path shortcutPath;
