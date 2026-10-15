@@ -22,6 +22,7 @@ import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.minecraft.world.entity.EntityType;
+import net.minecraft.world.entity.animal.Cow;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
@@ -202,6 +203,26 @@ public final class PerfGameTests {
         helper.assertTrue(!pig.checked(), "a pig that came back null is unchecked: " + pig);
         RecognitionReport.Entry sheep = find(entries, "minecraft:sheep");
         helper.assertTrue(sheep.checked() && sheep.recognised(), "the report carried on after the failures: " + sheep);
+        helper.succeed();
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR)
+    public static void recognitionReportSurvivesEntitiesThatFailToDiscard(GameTestHelper helper) {
+        List<RecognitionReport.Entry> entries = RecognitionReport.run(helper.getLevel(), "minecraft", type -> {
+            if (type == EntityType.COW) {
+                return new Cow(EntityType.COW, helper.getLevel()) {
+                    @Override
+                    public void remove(RemovalReason reason) {
+                        throw new IllegalStateException("multipart teardown in a mod");
+                    }
+                };
+            }
+            return type.create(helper.getLevel());
+        });
+        RecognitionReport.Entry cow = find(entries, "minecraft:cow");
+        helper.assertTrue(cow.checked() && cow.recognised(), "the cow's verdict was kept: " + cow);
+        RecognitionReport.Entry sheep = find(entries, "minecraft:sheep");
+        helper.assertTrue(sheep.checked() && sheep.recognised(), "the report carried on: " + sheep);
         helper.succeed();
     }
 

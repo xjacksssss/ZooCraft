@@ -72,7 +72,12 @@ public final class RecognitionReport {
             RecognitionVerdict verdict = RecognitionRules.decide(AnimalRecognition.facts(entity));
             return new Entry(id, verdict.recognised(), verdict.reason().label(), true);
         } finally {
-            entity.discard();
+            try {
+                entity.discard();
+            } catch (Exception | LinkageError e) {
+                // Some mods' entities tear down parts or registrations they never set up, because this one was never added.
+                ZooCraft.LOGGER.debug("Couldn't discard {} after the recognition check", id, e);
+            }
         }
     }
 

@@ -156,15 +156,21 @@ final class VisitorExploration {
     private static final double LITTER_SIGHT = 8;
     private static final int LITTER_UNITS_THAT_BOTHER = 3;
     private static final int SIGHTINGS_BEFORE_COMPLAINT = 3;
+    /** Phase 2 balance: -2 satisfaction and one sighting per 2 seconds near litter. */
+    private static final double LITTER_LOSS_PER_SECOND = 1.0;
+    private static final double SECONDS_PER_SIGHTING = 2.0;
 
     /**
      * Every 2 seconds while exploring: counts the litter around the visitor, feeds the zoo's cleanliness and, when
      * there is a lot of it, spoils the visit a little (Phase 2 spec section 9.4).
      */
     static void noticeLitter(Visitor visitor, Zoo zoo, long now) {
-        if (visitor.getServer() == null || !StepRates.due(now, visitor.lastLitterCheck, ZooConfig.LITTER_CHECK_INTERVAL_TICKS.get())) {
+        int interval = ZooConfig.LITTER_CHECK_INTERVAL_TICKS.get();
+        if (visitor.getServer() == null || !StepRates.due(now, visitor.lastLitterCheck, interval)) {
             return;
         }
+        // Effects scale with the time covered, so the check interval and visitor step change cost, not balance.
+        double seconds = StepRates.elapsedSeconds(now, visitor.lastLitterCheck, interval);
         visitor.lastLitterCheck = now;
         long timer = SimulationTimers.start();
         try {
@@ -176,8 +182,12 @@ final class VisitorExploration {
             }
             ZooManager.get(visitor.getServer()).recordCleanlinessSample(zoo, Cleanliness.sample(units));
             if (units >= LITTER_UNITS_THAT_BOTHER) {
-                visitor.changeSatisfaction(-2);
-                visitor.litterSeen++;
+                visitor.changeSatisfaction(-LITTER_LOSS_PER_SECOND * seconds);
+                visitor.litterExposure += seconds;
+                while (visitor.litterExposure >= SECONDS_PER_SIGHTING) {
+                    visitor.litterExposure -= SECONDS_PER_SIGHTING;
+                    visitor.litterSeen++;
+                }
                 if (visitor.litterSeen >= SIGHTINGS_BEFORE_COMPLAINT) {
                     int cellX = Math.floorDiv(visitor.getBlockX(), 16) * 16 + 8;
                     int cellZ = Math.floorDiv(visitor.getBlockZ(), 16) * 16 + 8;

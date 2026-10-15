@@ -26,6 +26,15 @@ class StepRatesTest {
     }
 
     @Test
+    void elapsedSecondsCoverTheRealGapBetweenChecks() {
+        assertEquals(2.0, StepRates.elapsedSeconds(140, 100, 40), 1e-12);   // on time
+        assertEquals(3.0, StepRates.elapsedSeconds(160, 100, 40), 1e-12);   // rounded up to a later step
+        assertEquals(0.5, StepRates.elapsedSeconds(110, 100, 10), 1e-12);   // a short interval counts less each time
+        assertEquals(4.0, StepRates.elapsedSeconds(5000, 100, 40), 1e-12);  // a long pause counts at most two intervals
+        assertEquals(2.0, StepRates.elapsedSeconds(100, Long.MIN_VALUE / 2, 40), 1e-12); // the first check: one interval
+    }
+
+    @Test
     void dueWhenTheIntervalHasPassed() {
         assertTrue(StepRates.due(100, 80, 20));
         assertFalse(StepRates.due(99, 80, 20));

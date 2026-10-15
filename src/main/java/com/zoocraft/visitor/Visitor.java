@@ -111,6 +111,8 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
     /** Game time of the last look for animals and for litter (runtime only). */
     long lastViewingCheck = Long.MIN_VALUE / 2;
     long lastLitterCheck = Long.MIN_VALUE / 2;
+    /** Seconds spent near litter not yet counted as a sighting (runtime only). */
+    double litterExposure;
     // Exhibit tracking for this visit.
     @Nullable UUID currentExhibit;
     final java.util.Deque<UUID> recentExhibits = new java.util.ArrayDeque<>();

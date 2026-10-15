@@ -22,6 +22,17 @@ public final class StepRates {
         return stepTicks / 20.0;
     }
 
+    /**
+     * Seconds a periodic check should account for: the real gap since the last one (checks only run on visitor steps,
+     * so they can come late), at most two intervals, and one interval for the first check.
+     */
+    public static double elapsedSeconds(long now, long last, int intervalTicks) {
+        if (last <= Long.MIN_VALUE / 4) {
+            return intervalTicks / 20.0;
+        }
+        return Math.min(now - last, 2L * intervalTicks) / 20.0;
+    }
+
     public static boolean due(long now, long last, int intervalTicks) {
         return now - last >= intervalTicks;
     }
