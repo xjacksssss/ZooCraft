@@ -74,7 +74,9 @@ What made the difference:
 3. **Off-path cost 0.75** (`simulation.offPathCost`, was 1.0). Vanilla's path search weighs the remaining distance at 1.5 per block, so a grass step costing 2.0 made searches flood sideways: a 42-block walk across grass couldn't be planned at all. At 0.5 visitors stopped seeking out paths beside them. 0.75 does both.
 4. **Follow range stays 48** (`simulation.visitorFollowRange`). 96 and 128 make every failing search dearer and the tick worse, with fewer stuck visitors only because each search covers more ground.
 
-Result: 200 visitors add 5.9 ms per tick (0.03 ms each), inside the spec target of 8 ms, and the steady P99 stays under 35 ms. Exhibit coverage at 200 visitors: 9 of 212 exhibits never viewed (4%; M9: 7%). The remaining most-missed targets are busy shop counters, which M10b's counter occupancy addresses.
+After the M10a review, a plan only counts as a miss when its path ends more than 2 blocks from the target and the visitor got no closer since the last one. Misses and failed routes also reset on a new target or on arrival, so visitors no longer give up on spots they can actually reach. Rerun at 200 visitors: **14.7 ms** (baseline 7.8 ms, so +6.9 ms), worst P99 40.5 ms, ZooCraft 4.9 ms, 33.5 plans a second (80% short, 2.3 ms each), 8 stuck. The most-missed targets are again viewing spots inside the pens. M11's enclosure-based spots (spec 8.1) remove them.
+
+Result: 200 visitors add 6 to 7 ms per tick (about 0.035 ms each), inside the spec target of 8 ms, with P99 under 50 ms. Exhibit coverage at 200 visitors: 9 of 212 exhibits never viewed (4%; M9: 7%). The remaining most-missed targets are busy shop counters, which M10b's counter occupancy addresses.
 
 ## Reading `/zoo debug perf`
 
