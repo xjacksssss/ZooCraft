@@ -42,8 +42,12 @@ public final class Zoo {
             ZooStats.CODEC.fieldOf("stats").forGetter(Zoo::stats),
             Codec.FLOAT.fieldOf("satisfaction").forGetter(Zoo::satisfaction),
             Codec.FLOAT.fieldOf("reputation").forGetter(Zoo::reputation),
-            ZooFacilities.CODEC.optionalFieldOf("facilities", ZooFacilities.empty()).forGetter(z -> z.facilities)
-    ).apply(i, Zoo::new));
+            // Not optionalFieldOf(name, default): that would hand every Phase 1 zoo the same mutable default object,
+            // and skip saving it because it "equals" the default.
+            ZooFacilities.CODEC.optionalFieldOf("facilities").forGetter(z -> Optional.of(z.facilities))
+    ).apply(i, (id, name, dimension, owner, managers, boundary, gates, open, price, keepLoaded, ledger, stats, satisfaction, reputation, facilities) ->
+            new Zoo(id, name, dimension, owner, managers, boundary, gates, open, price, keepLoaded, ledger, stats, satisfaction, reputation,
+                    facilities.orElseGet(ZooFacilities::empty))));
 
     private final UUID id;
     private String name;

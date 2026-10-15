@@ -782,6 +782,23 @@ public final class ZooManager {
         CHANGE_LISTENERS.forEach(l -> l.accept(zoo));
     }
 
+    /**
+     * GameTests only: replaces the zoo with a copy decoded from its own saved form, as after a server restart.
+     *
+     * @param phaseOneShape strip the fields Phase 2 added, as if the zoo had been saved by Phase 1
+     */
+    public Zoo reloadForTest(Zoo zoo, boolean phaseOneShape) {
+        net.minecraft.nbt.CompoundTag tag = (net.minecraft.nbt.CompoundTag) Zoo.CODEC.encodeStart(net.minecraft.nbt.NbtOps.INSTANCE, zoo).getOrThrow();
+        if (phaseOneShape) {
+            tag.remove("facilities");
+            tag.getCompound("ledger").remove("totalShopSales");
+        }
+        Zoo copy = Zoo.CODEC.parse(net.minecraft.nbt.NbtOps.INSTANCE, tag).getOrThrow();
+        data.remove(zoo);
+        data.put(copy);
+        return copy;
+    }
+
     /** For other packages that update visitor-driven fields. */
     public void markDirty(Zoo zoo) {
         data.setDirty();

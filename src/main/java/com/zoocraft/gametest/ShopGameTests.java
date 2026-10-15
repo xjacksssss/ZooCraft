@@ -19,6 +19,7 @@ import com.zoocraft.zoo.ShopStats;
 import com.zoocraft.zoo.Toilet;
 import com.zoocraft.zoo.Zoo;
 import com.zoocraft.zoo.ZooFacilities;
+import com.zoocraft.zoo.ZooManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
@@ -113,6 +114,22 @@ public final class ShopGameTests {
         StockProtection.onBreak(strangerBreak);
         helper.assertTrue(strangerBreak.isCanceled(), "stranger could break the stock chest");
         TestZoos.cleanUp(helper, s.owner(), s.zoo());
+        helper.succeed();
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR)
+    public static void shopsAddedToAReloadedPhaseOneZooAreSavedAndNotShared(GameTestHelper helper) {
+        ServerPlayer owner = TestZoos.player(helper, "Owner");
+        ZooManager zoos = TestZoos.manager(helper);
+        Zoo a = zoos.reloadForTest(TestZoos.create(helper, owner, "Old A", TestZoos.rectangle(helper, 2, 2, 14, 29)), true);
+        Zoo b = zoos.reloadForTest(TestZoos.create(helper, owner, "Old B", TestZoos.rectangle(helper, 17, 2, 29, 29)), true);
+        TestShops.assertOk(helper, zoos.createShop(owner, helper.getLevel(), helper.absolutePos(new BlockPos(8, 2, 8))));
+        helper.assertTrue(a.shops().size() == 1, "shop not added");
+        helper.assertTrue(b.shops().isEmpty(), "a shop added to one zoo appeared in another");
+        Zoo reloaded = zoos.reloadForTest(a, false);
+        helper.assertTrue(reloaded.shops().size() == 1, "the shop was lost when the zoo was saved");
+        TestZoos.cleanUp(helper, owner, reloaded);
+        TestZoos.cleanUp(helper, owner, b);
         helper.succeed();
     }
 
