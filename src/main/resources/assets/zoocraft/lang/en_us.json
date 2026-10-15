@@ -305,5 +305,7 @@
   "zoocraft.screen.dashboard.f_chart": "Income by day",
   "zoocraft.screen.dashboard.f_shops": "Shops: today / week / total",
   "zoocraft.screen.dashboard.f_recent": "Recent transactions",
-  "zoocraft.screen.dashboard.f_no_shops": "No shops yet."
+  "zoocraft.screen.dashboard.f_no_shops": "No shops yet.",
+  "zoocraft.debug.facilities": "%s shop(s), %s toilet(s), %s bin(s), %s piece(s) of litter:",
+  "zoocraft.debug.litter": "Dropped %s of %s piece(s) of litter (the rest hit the cap or landed outside the zoo)."
 }

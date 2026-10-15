@@ -2,7 +2,9 @@ package com.zoocraft.gametest;
 
 import com.zoocraft.ZooCraft;
 import com.zoocraft.core.shop.ProductCategory;
+import com.zoocraft.item.ToolOutlineSync;
 import com.zoocraft.shop.FacilityCensus;
+import com.zoocraft.shop.FacilityReach;
 import com.zoocraft.shop.FacilitySnapshot;
 import com.zoocraft.shop.StockProtection;
 import com.zoocraft.zoo.ZooAlerts;
@@ -130,6 +132,18 @@ public final class ShopGameTests {
         helper.assertTrue(reloaded.shops().size() == 1, "the shop was lost when the zoo was saved");
         TestZoos.cleanUp(helper, owner, reloaded);
         TestZoos.cleanUp(helper, owner, b);
+        helper.succeed();
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR)
+    public static void unreachableShopsAreOutlinedAsProblems(GameTestHelper helper) {
+        TestShops.Setup s = TestShops.setUp(helper, "Outline");
+        long now = helper.getLevel().getGameTime();
+        helper.assertTrue(ToolOutlineSync.facilities(s.zoo(), now).shops().getFirst().ok(), "a working shop should be outlined normally");
+        FacilityReach.markUnreachable(s.zoo(), s.shop().id(), now + 1200);
+        helper.assertFalse(ToolOutlineSync.facilities(s.zoo(), now).shops().getFirst().ok(), "an unreachable shop should be outlined in red");
+        FacilityReach.clear(s.zoo(), s.shop().id());
+        TestZoos.cleanUp(helper, s.owner(), s.zoo());
         helper.succeed();
     }
 

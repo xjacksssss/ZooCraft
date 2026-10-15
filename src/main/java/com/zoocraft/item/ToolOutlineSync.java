@@ -3,6 +3,7 @@ package com.zoocraft.item;
 import com.zoocraft.ZooCraft;
 import com.zoocraft.network.ZooOutlinesPayload;
 import com.zoocraft.registry.ZooItems;
+import com.zoocraft.shop.FacilityReach;
 import com.zoocraft.zoo.Gate;
 import com.zoocraft.zoo.Zoo;
 import com.zoocraft.zoo.ZooManager;
@@ -50,14 +51,17 @@ public final class ToolOutlineSync {
         List<Zoo> near = zoos.zoosNear(player.level(), player.blockPosition(), CHUNK_RADIUS);
         return new ZooOutlinesPayload(near.stream().limit(64).map(zoo -> new ZooOutlinesPayload.Outline(
                 zoo.id(), zoo.name(), ZooManager.can(player, zoo, ZooPermission.EDIT), zoo.boundary(),
-                zoo.gates().stream().map(g -> marker(zoo, g, gameTime)).toList(), facilities(zoo))).toList());
+                zoo.gates().stream().map(g -> marker(zoo, g, gameTime)).toList(), facilities(zoo, gameTime))).toList());
     }
 
-    private static ZooOutlinesPayload.FacilityMarkers facilities(Zoo zoo) {
+    /** Shop and toilet markers; anything visitors can't use or reach is drawn red (Phase 2 spec section 6). */
+    public static ZooOutlinesPayload.FacilityMarkers facilities(Zoo zoo, long gameTime) {
         return new ZooOutlinesPayload.FacilityMarkers(
                 zoo.shops().stream().map(s -> new ZooOutlinesPayload.ShopMarker(s.counter(), s.containers(),
-                        s.open() && !zoo.isDetached(s.counter()) && !s.containers().isEmpty())).toList(),
-                zoo.toilets().stream().map(t -> new ZooOutlinesPayload.ToiletMarker(t.pos(), !zoo.isDetached(t.pos()))).toList());
+                        s.open() && !zoo.isDetached(s.counter()) && !s.containers().isEmpty()
+                                && !FacilityReach.isUnreachable(zoo, s.id(), gameTime))).toList(),
+                zoo.toilets().stream().map(t -> new ZooOutlinesPayload.ToiletMarker(t.pos(),
+                        !zoo.isDetached(t.pos()) && !FacilityReach.isUnreachable(zoo, t.id(), gameTime))).toList());
     }
 
     private static ZooOutlinesPayload.GateMarker marker(Zoo zoo, Gate gate, long gameTime) {

@@ -8,6 +8,10 @@ import com.mojang.brigadier.exceptions.CommandSyntaxException;
 import com.zoocraft.animal.AnimalCensus;
 import com.zoocraft.animal.Exhibit;
 import com.zoocraft.animal.ZooCensus;
+import com.zoocraft.litter.LitterTracker;
+import com.zoocraft.litter.Littering;
+import com.zoocraft.shop.FacilityCensus;
+import com.zoocraft.shop.FacilitySnapshot;
 import com.zoocraft.visitor.Visitor;
 import com.zoocraft.visitor.VisitorSpawner;
 import com.zoocraft.visitor.VisitorTracker;
@@ -48,6 +52,11 @@ final class ZooDebugCommands {
                                 .executes(c -> needs(c, ZooCommands.implicitZoo(c)))
                                 .then(Commands.argument("zoo", StringArgumentType.string()).suggests(ZooCommands.ZOO_NAMES)
                                         .executes(c -> needs(c, ZooCommands.namedZoo(c)))))))
+                .then(Commands.literal("facilities").executes(c -> facilities(c, ZooCommands.implicitZoo(c)))
+                        .then(Commands.argument("zoo", StringArgumentType.string()).suggests(ZooCommands.ZOO_NAMES)
+                                .executes(c -> facilities(c, ZooCommands.namedZoo(c)))))
+                .then(Commands.literal("litter").then(Commands.argument("count", IntegerArgumentType.integer(1, 200))
+                        .executes(c -> litter(c, ZooCommands.implicitZoo(c)))))
                 .then(Commands.literal("visitors").executes(c -> visitors(c, ZooCommands.implicitZoo(c)))
                         .then(Commands.argument("zoo", StringArgumentType.string()).suggests(ZooCommands.ZOO_NAMES).executes(c -> visitors(c, ZooCommands.namedZoo(c)))));
     }
@@ -105,6 +114,47 @@ final class ZooDebugCommands {
         visitors.forEach(v -> v.testSetNeeds(hunger, toilet));
         c.getSource().sendSuccess(() -> Component.translatable("zoocraft.debug.needs", visitors.size(), hunger, toilet), false);
         return visitors.size();
+    }
+
+    /** Takes a fresh facility census and lists what visitors will see: shops with stock, toilets and bins. */
+    private static int facilities(CommandContext<CommandSourceStack> c, Zoo zoo) {
+        ServerLevel level = c.getSource().getServer().getLevel(zoo.dimension());
+        if (level == null) {
+            return 0;
+        }
+        FacilitySnapshot snapshot = FacilityCensus.refresh(zoo, level);
+        c.getSource().sendSuccess(() -> Component.translatable("zoocraft.debug.facilities", snapshot.shops().size(),
+                snapshot.toilets().size(), snapshot.bins().size(), LitterTracker.litterIn(zoo).size()), false);
+        for (FacilitySnapshot.ShopState shop : snapshot.shops()) {
+            String stock = String.join(", ", shop.products().stream().map(p -> p.itemId() + " x" + p.count() + " @" + p.price()).toList());
+            c.getSource().sendSuccess(() -> Component.literal(" - shop at " + shop.counter().toShortString()
+                    + (shop.usable() ? "" : " (not usable)") + ": " + (stock.isEmpty() ? "nothing in stock" : stock)), false);
+        }
+        for (FacilitySnapshot.ToiletState toilet : snapshot.toilets()) {
+            c.getSource().sendSuccess(() -> Component.literal(" - toilet at " + toilet.pos().toShortString() + (toilet.usable() ? "" : " (detached)")), false);
+        }
+        for (FacilitySnapshot.BinState bin : snapshot.bins()) {
+            c.getSource().sendSuccess(() -> Component.literal(" - bin at " + bin.pos().toShortString() + ": " + bin.fill() + "/" + bin.capacity()), false);
+        }
+        return snapshot.shops().size() + snapshot.toilets().size() + snapshot.bins().size();
+    }
+
+    /** Drops litter around the player, through the normal caps, to try out cleaning up and the cleanliness rating. */
+    private static int litter(CommandContext<CommandSourceStack> c, Zoo zoo) throws CommandSyntaxException {
+        ServerPlayer player = c.getSource().getPlayerOrException();
+        int count = IntegerArgumentType.getInteger(c, "count");
+        int dropped = 0;
+        for (int i = 0; i < count; i++) {
+            double angle = player.getRandom().nextDouble() * Math.PI * 2;
+            double distance = 1 + player.getRandom().nextDouble() * 6;
+            net.minecraft.world.phys.Vec3 at = player.position().add(Math.cos(angle) * distance, 0.5, Math.sin(angle) * distance);
+            if (Littering.drop(player.serverLevel(), zoo, at, i) != com.zoocraft.core.litter.LitterRules.Outcome.NONE) {
+                dropped++;
+            }
+        }
+        int finalDropped = dropped;
+        c.getSource().sendSuccess(() -> Component.translatable("zoocraft.debug.litter", finalDropped, count), false);
+        return dropped;
     }
 
     private static int visitors(CommandContext<CommandSourceStack> c, Zoo zoo) {
