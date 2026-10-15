@@ -58,7 +58,8 @@ class ExhibitRatingTest {
     @Test
     void noAttemptsYetMeansNoAccessPenalty() {
         assertEquals(1.0, ExhibitRating.access(8, 0, false, 0), 1e-9);
-        assertEquals(0.5, ExhibitRating.access(8, 8, false, 10), 1e-9, "reached but nothing seen counts half");
+        assertEquals(0.0, ExhibitRating.access(8, 8, false, 10), 1e-9, "reached but nothing seen: visitors can't get close enough to see");
+        assertEquals(0.5, ExhibitRating.access(8, 4, true, 10), 1e-9);
         assertEquals(0.0, ExhibitRating.access(0, 0, false, 10), 1e-9);
     }
 

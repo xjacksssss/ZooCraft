@@ -291,4 +291,35 @@ public final class AnimalGameTests {
             }
         });
     }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 100)
+    public static void aCrampedPenRaisesTheCrampedWarning(GameTestHelper helper) {
+        ServerPlayer owner = TestZoos.player(helper, "Owner");
+        Zoo zoo = TestZoos.create(helper, owner, "Cramped", TestZoos.rectangle(helper, 2, 2, 45, 45));
+        fenceRing(helper, 19, 23); // a 3 by 3 floor at x and z 20..22
+        for (int i = 0; i < 4; i++) {
+            helper.spawnWithNoFreeWill(EntityType.COW, at(20 + i % 3, 20 + i / 3));
+        }
+        helper.runAfterDelay(2, () -> {
+            AnimalCensus.refresh(zoo, helper.getLevel());
+            AnimalCensus.runPendingFills(helper.getLevel().getServer(), 100);
+            Exhibit exhibit = AnimalCensus.refresh(zoo, helper.getLevel()).exhibits().getFirst();
+            helper.assertTrue(exhibit.enclosure().bounded() && exhibit.enclosure().area() == 9, "area " + exhibit.enclosure().area());
+            helper.assertTrue(exhibit.rating().warnings().contains(com.zoocraft.core.exhibit.ExhibitRating.Warning.CRAMPED),
+                    "no cramped warning: " + exhibit.rating());
+
+            // The Animals tab shows the rating and the warning, and both survive the trip to the client.
+            com.zoocraft.network.DashboardSnapshot snapshot = com.zoocraft.dashboard.DashboardService.snapshot(owner, zoo,
+                    com.zoocraft.dashboard.DashboardTab.ANIMALS);
+            net.minecraft.network.RegistryFriendlyByteBuf buf = new net.minecraft.network.RegistryFriendlyByteBuf(
+                    io.netty.buffer.Unpooled.buffer(), helper.getLevel().registryAccess());
+            com.zoocraft.network.DashboardSnapshot.STREAM_CODEC.encode(buf, snapshot);
+            com.zoocraft.network.DashboardSnapshot.ExhibitLine line = com.zoocraft.network.DashboardSnapshot.STREAM_CODEC.decode(buf)
+                    .exhibits().getFirst();
+            helper.assertTrue(line.grade() == exhibit.rating().grade().ordinal() && line.score() == exhibit.rating().score(), "rating lost");
+            helper.assertTrue(line.warnings().stream().anyMatch(w -> w.getString().contains("cramped")), "warnings " + line.warnings());
+            TestZoos.cleanUp(helper, owner, zoo);
+            helper.succeed();
+        });
+    }
 }

@@ -40,8 +40,13 @@ public record DashboardSnapshot(
     public record SpeciesLine(Component name, int count) {
     }
 
-    /** @param problem true when visitors can't get close enough */
-    public record ExhibitLine(Component label, int animals, int views, boolean problem) {
+    /**
+     * @param problem  true when visitors can't get close enough
+     * @param score    the exhibit's rating, 0 to 100
+     * @param grade    ordinal of {@link com.zoocraft.core.exhibit.ExhibitRating.Grade}
+     * @param warnings plain-language warnings about the exhibit (cramped, bare ground)
+     */
+    public record ExhibitLine(Component label, int animals, int views, boolean problem, int score, int grade, List<Component> warnings) {
     }
 
     /** @param status ordinal of {@link com.zoocraft.zoo.GateStatus} */
@@ -137,6 +142,9 @@ public record DashboardSnapshot(
             b.writeVarInt(e.animals());
             b.writeVarInt(e.views());
             b.writeBoolean(e.problem());
+            b.writeVarInt(e.score());
+            b.writeVarInt(e.grade());
+            writeList(b, e.warnings(), (wb, w) -> TEXT.encode(wb, w));
         });
         writeList(buf, s.gates, (b, g) -> {
             b.writeBlockPos(g.pos());
@@ -222,7 +230,8 @@ public record DashboardSnapshot(
                 readList(buf, TEXT::decode),
                 readList(buf, b -> new CommentLine(TEXT.decode(b), b.readVarInt())),
                 readList(buf, b -> new SpeciesLine(TEXT.decode(b), b.readVarInt())),
-                readList(buf, b -> new ExhibitLine(TEXT.decode(b), b.readVarInt(), b.readVarInt(), b.readBoolean())),
+                readList(buf, b -> new ExhibitLine(TEXT.decode(b), b.readVarInt(), b.readVarInt(), b.readBoolean(), b.readVarInt(), b.readVarInt(),
+                        readList(b, TEXT::decode))),
                 readList(buf, b -> new GateLine(b.readBlockPos(), b.readVarInt())),
                 readList(buf, b -> new ManagerLine(b.readUUID(), b.readUtf())),
                 readList(buf, b -> new ShopLine(b.readUUID(), b.readUtf(), b.readVarInt(), b.readVarLong(), b.readVarInt(), b.readBoolean(),

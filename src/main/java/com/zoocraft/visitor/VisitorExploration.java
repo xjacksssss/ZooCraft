@@ -212,6 +212,13 @@ final class VisitorExploration {
             census.exhibitContaining(animal).ifPresent(exhibit -> {
                 if (visitor.exhibitsViewed.add(exhibit.id())) {
                     exhibit.addView(now);
+                    // A well-kept exhibit pleases a little, a poor one disappoints a little (spec 8.5).
+                    switch (exhibit.rating().grade()) {
+                        case EXCELLENT -> visitor.changeSatisfaction(1);
+                        case POOR -> visitor.changeSatisfaction(-1);
+                        default -> {
+                        }
+                    }
                 }
             });
             String species = census.speciesOf(animal);

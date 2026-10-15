@@ -166,6 +166,7 @@ public final class AnimalCensus {
             if (!exhibit.enclosure().bounded()) {
                 exhibit.sampledSpots(sampledSpots(level, zoo, centre, members.stream().map(Mob::position).toList()));
             }
+            exhibit.rate(level.getGameTime());
             if (exhibit.needsFill(level.getGameTime())) {
                 PENDING.add(new FillJob(zoo.id(), exhibit.id()));
             }
@@ -251,6 +252,7 @@ public final class AnimalCensus {
             }
         }
         exhibit.filled(enclosure, surroundings(level, enclosure), spots, level.getGameTime());
+        exhibit.rate(level.getGameTime());
     }
 
     /** Where visitors can stand: inside the zoo, out of fluids; path blocks underfoot count as paths. */

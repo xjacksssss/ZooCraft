@@ -555,8 +555,14 @@ public class DashboardScreen extends Screen {
         for (DashboardSnapshot.ExhibitLine exhibit : s.exhibits()) {
             lines.add(new LineEntry(Component.literal("  ").append(exhibit.label()), TEXT));
             lines.add(new LineEntry(Component.translatable("zoocraft.screen.dashboard.exhibit_line", exhibit.animals(), exhibit.views()), MUTED));
+            String grade = com.zoocraft.core.exhibit.ExhibitRating.Grade.values()[exhibit.grade()].name().toLowerCase(java.util.Locale.ROOT);
+            lines.add(new LineEntry(Component.translatable("zoocraft.screen.dashboard.exhibit_rating",
+                    Component.translatable("zoocraft.rating." + grade), exhibit.score()), MUTED));
             if (exhibit.problem()) {
                 lines.add(new LineEntry(Component.translatable("zoocraft.screen.dashboard.exhibit_problem"), WARNING));
+            }
+            for (Component warning : exhibit.warnings()) {
+                lines.add(new LineEntry(Component.literal("    ").append(warning), WARNING));
             }
         }
         int visible = (PANEL_HEIGHT - 56) / LINE;

@@ -271,7 +271,15 @@ public final class DashboardService {
             if (problem) {
                 alerts.add(Component.translatable("zoocraft.alert.cant_see", label));
             }
-            exhibits.add(new DashboardSnapshot.ExhibitLine(label, exhibit.animals().size(), exhibit.viewCount(), problem));
+            List<Component> warnings = new ArrayList<>();
+            if (exhibit.rating().warnings().contains(com.zoocraft.core.exhibit.ExhibitRating.Warning.CRAMPED)) {
+                warnings.add(Component.translatable("zoocraft.warning.cramped", label));
+            }
+            if (exhibit.rating().warnings().contains(com.zoocraft.core.exhibit.ExhibitRating.Warning.BARE)) {
+                warnings.add(Component.translatable("zoocraft.warning.bare", label));
+            }
+            exhibits.add(new DashboardSnapshot.ExhibitLine(label, exhibit.animals().size(), exhibit.viewCount(), problem,
+                    exhibit.rating().score(), exhibit.rating().grade().ordinal(), warnings));
         }
         exhibits.sort(Comparator.comparingInt(DashboardSnapshot.ExhibitLine::views).reversed());
 

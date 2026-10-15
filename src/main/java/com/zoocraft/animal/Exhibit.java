@@ -3,6 +3,7 @@ package com.zoocraft.animal;
 import com.zoocraft.config.ZooConfig;
 import com.zoocraft.core.crowd.Occupancy;
 import com.zoocraft.core.exhibit.Enclosure;
+import com.zoocraft.core.exhibit.ExhibitRating;
 import net.minecraft.core.BlockPos;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.phys.Vec3;
@@ -40,6 +41,9 @@ public final class Exhibit {
     private Surroundings surroundings = new Surroundings(0, false);
     private long lastFill = Long.MIN_VALUE / 2;
     private boolean filled;
+    private ExhibitRating.Result rating = ExhibitRating.Result.UNRATED;
+    /** Animals wider than this count double for space (Phase 3 spec section 8.5). */
+    private static final double LARGE_ANIMAL_WIDTH = 1.5;
 
     private final Occupancy<BlockPos> claims = new Occupancy<>(CLAIM_EXPIRY_TICKS);
     private final Map<BlockPos, Long> spotUnreachableUntil = new HashMap<>();
@@ -209,9 +213,31 @@ public final class Exhibit {
         return reached;
     }
 
-    /** Visitors can't get close enough: no viewing spots at all, or every spot has recently failed. */
+    /**
+     * Visitors can't get close enough: no viewing spots at all, every spot has recently failed, or visitors reach the
+     * spots but don't see the animals from them.
+     */
     public boolean viewingProblem(long now) {
-        return viewingSpots.isEmpty() || isUnreachable(now);
+        return viewingSpots.isEmpty() || isUnreachable(now) || rating.warnings().contains(ExhibitRating.Warning.CANT_SEE);
+    }
+
+    // ------------------------------------------------------------------ rating (spec 8.5)
+
+    public ExhibitRating.Result rating() {
+        return rating;
+    }
+
+    /** Rates the exhibit from its enclosure and the last day of visits. Called with every census. */
+    void rate(long now) {
+        double animalWeight = 0;
+        for (Mob animal : animals) {
+            animalWeight += animal.getBbWidth() > LARGE_ANIMAL_WIDTH ? 2 : 1;
+        }
+        int area = enclosure.area();
+        // Before the floor has been searched, the surroundings are unknown: no penalty.
+        double natural = area == 0 ? 1.0 : (double) surroundings.natural() / area;
+        rating = ExhibitRating.rate(new ExhibitRating.Input(viewingSpots.size(), spotsReachedSince(now - DAY_TICKS), viewsToday(now) > 0,
+                attemptsToday(now), species.size(), !enclosure.bounded(), area, animalWeight, natural, surroundings.waterOrLeaves()));
     }
 
     // ------------------------------------------------------------------ views

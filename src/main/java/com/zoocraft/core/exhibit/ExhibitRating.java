@@ -60,7 +60,10 @@ public final class ExhibitRating {
         return new Result(score, grade(score), Set.copyOf(warnings));
     }
 
-    /** Share of spots reached recently, halved when nobody saw an animal. Full marks until visitors have tried. */
+    /**
+     * Share of spots reached recently, or nothing when nobody saw an animal from them (visitors got there but couldn't
+     * see). Full marks until visitors have tried.
+     */
     public static double access(int spots, int reached, boolean viewed, int attempts) {
         if (attempts == 0) {
             return 1.0;
@@ -68,7 +71,7 @@ public final class ExhibitRating {
         if (spots == 0) {
             return 0.0;
         }
-        return Math.min(1.0, (double) reached / spots) * (viewed ? 1.0 : 0.5);
+        return viewed ? Math.min(1.0, (double) reached / spots) : 0.0;
     }
 
     public static double variety(int species) {
