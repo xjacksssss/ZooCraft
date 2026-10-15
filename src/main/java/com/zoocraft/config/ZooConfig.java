@@ -24,6 +24,11 @@ public final class ZooConfig {
     public static final ModConfigSpec.IntValue DEFAULT_FOOD_PRICE;
     public static final ModConfigSpec.IntValue DEFAULT_DRINK_PRICE;
     public static final ModConfigSpec.IntValue DEFAULT_SOUVENIR_PRICE;
+    public static final ModConfigSpec.IntValue BIN_CAPACITY;
+    public static final ModConfigSpec.IntValue BIN_SEARCH_RADIUS;
+    public static final ModConfigSpec.DoubleValue LITTER_CHANCE_WITHOUT_BIN;
+    public static final ModConfigSpec.IntValue MAX_LITTER_PER_ZOO;
+    public static final ModConfigSpec.IntValue MAX_LITTER_TOTAL;
     public static final ModConfigSpec.IntValue NEED_THRESHOLD;
     public static final ModConfigSpec.IntValue TOILET_CAPACITY;
     public static final ModConfigSpec.IntValue BUDGET_CONSCIOUS_MIN;
@@ -83,6 +88,19 @@ public final class ZooConfig {
                 .defineInRange("needThreshold", 60, 1, 100);
         TOILET_CAPACITY = b.comment("How many visitors one toilet point serves at once.")
                 .defineInRange("toiletCapacity", 2, 1, 32);
+        b.pop();
+
+        b.push("litter");
+        BIN_CAPACITY = b.comment("Pieces of rubbish a bin holds before someone has to empty it.")
+                .defineInRange("binCapacity", 32, 1, 10_000);
+        BIN_SEARCH_RADIUS = b.comment("How far, in blocks, a visitor carrying rubbish will walk to a bin.")
+                .defineInRange("binSearchRadius", 16, 1, 64);
+        LITTER_CHANCE_WITHOUT_BIN = b.comment("Chance that a visitor with no bin nearby drops its rubbish instead of taking it home.")
+                .defineInRange("litterChanceWithoutBin", 0.75, 0.0, 1.0);
+        MAX_LITTER_PER_ZOO = b.comment("Most pieces of litter one zoo can have; beyond this, nearby litter piles up instead.")
+                .defineInRange("maxLitterPerZoo", 48, 0, 1000);
+        MAX_LITTER_TOTAL = b.comment("Most pieces of litter across all zoos on the server.")
+                .defineInRange("maxLitterTotal", 300, 0, 10_000);
         b.pop();
 
         b.push("budgets");

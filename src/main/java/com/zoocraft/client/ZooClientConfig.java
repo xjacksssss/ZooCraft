@@ -6,10 +6,12 @@ import net.neoforged.neoforge.common.ModConfigSpec;
 public final class ZooClientConfig {
     public static final ModConfigSpec SPEC;
     public static final ModConfigSpec.BooleanValue SHOW_VISITOR_COMMENTS;
+    public static final ModConfigSpec.BooleanValue HIGHLIGHT_LITTER;
 
     static {
         ModConfigSpec.Builder b = new ModConfigSpec.Builder();
         SHOW_VISITOR_COMMENTS = b.comment("Show what visitors say above their heads.").define("showVisitorComments", true);
+        HIGHLIGHT_LITTER = b.comment("Make litter glow through walls while you hold a zoo tool.").define("highlightLitter", true);
         SPEC = b.build();
     }
 

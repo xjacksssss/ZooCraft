@@ -1,0 +1,16 @@
+{
+  "variants": {
+    "fill=0": {
+      "model": "zoocraft:block/rubbish_bin_fill0"
+    },
+    "fill=1": {
+      "model": "zoocraft:block/rubbish_bin_fill1"
+    },
+    "fill=2": {
+      "model": "zoocraft:block/rubbish_bin_fill2"
+    },
+    "fill=3": {
+      "model": "zoocraft:block/rubbish_bin_fill3"
+    }
+  }
+}

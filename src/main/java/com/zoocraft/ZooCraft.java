@@ -6,6 +6,7 @@ import com.zoocraft.chunk.ZooChunkLoader;
 import com.zoocraft.config.ZooConfig;
 import com.zoocraft.registry.ZooEntities;
 import com.zoocraft.network.ZooNetwork;
+import com.zoocraft.registry.ZooBlocks;
 import com.zoocraft.registry.ZooComponents;
 import com.zoocraft.registry.ZooItems;
 import net.minecraft.resources.ResourceLocation;
@@ -24,6 +25,7 @@ public final class ZooCraft {
         container.registerConfig(ModConfig.Type.SERVER, ZooConfig.SPEC);
         ZooItems.register(modBus);
         ZooComponents.register(modBus);
+        ZooBlocks.register(modBus);
         ZooEntities.register(modBus);
         ZooChunkLoader.register(modBus);
         AnimalRecognition.register(modBus);
