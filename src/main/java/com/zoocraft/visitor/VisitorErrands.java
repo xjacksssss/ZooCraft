@@ -152,7 +152,7 @@ public final class VisitorErrands {
                 visitor.needs.wants(Need.TOILET, threshold), toiletAvailable(zoo, snapshot, now),
                 now < foodCooldownUntil, now < toiletCooldownUntil, endingByChoice,
                 visitor.budget > 0 && visitor.souvenirRoll < SouvenirRules.chance(visitor.profile, visitor.seenSpecies.size()),
-                anyStocked(zoo, snapshot, SOUVENIRS, now), visitor.lastStopDone);
+                anyStocked(zoo, snapshot, SOUVENIRS, now), visitor.lastStopDone, false, false);
         for (Need need : VisitPlanner.unmet(input)) {
             visitor.remarkOnce(need == Need.HUNGER ? CommentType.HUNGRY_NO_FOOD : CommentType.NO_TOILET);
         }

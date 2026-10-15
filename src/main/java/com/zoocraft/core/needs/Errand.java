@@ -6,5 +6,6 @@ public enum Errand {
     FOOD,
     TOILET,
     SOUVENIR,
+    BIN,
     LEAVE
 }

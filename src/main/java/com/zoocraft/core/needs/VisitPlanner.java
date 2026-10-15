@@ -18,6 +18,9 @@ public final class VisitPlanner {
         if (in.hungry() && in.foodAvailable() && !in.foodOnCooldown()) {
             return Errand.FOOD;
         }
+        if (in.hasRubbish() && in.binAvailable()) {
+            return Errand.BIN;
+        }
         if (in.endingByChoice()) {
             return in.souvenirWish() && in.souvenirAvailable() && !in.lastStopDone() ? Errand.SOUVENIR : Errand.LEAVE;
         }

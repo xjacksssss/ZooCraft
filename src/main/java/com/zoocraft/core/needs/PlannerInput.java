@@ -8,8 +8,10 @@ package com.zoocraft.core.needs;
  * @param foodOnCooldown the visitor recently failed to buy food and won't try again yet
  * @param endingByChoice the visitor wants to go home (interest, time or money), so a last stop may happen
  * @param lastStopDone   the souvenir last stop has already happened (or was attempted)
+ * @param hasRubbish     the visitor is carrying rubbish from something it ate
+ * @param binAvailable   a usable bin is close enough to walk to
  */
 public record PlannerInput(boolean leaving, boolean hungry, boolean foodAvailable, boolean needsToilet, boolean toiletAvailable,
                            boolean foodOnCooldown, boolean toiletOnCooldown, boolean endingByChoice, boolean souvenirWish,
-                           boolean souvenirAvailable, boolean lastStopDone) {
+                           boolean souvenirAvailable, boolean lastStopDone, boolean hasRubbish, boolean binAvailable) {
 }
