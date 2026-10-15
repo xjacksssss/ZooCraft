@@ -45,6 +45,37 @@ the spawning burst. At 200 visitors, `/zoo debug perf "Big Park"` showed:
 - **16 of 200 visitors stuck** (no progress towards their target for over 10 seconds).
 - Everything else ZooCraft does (decisions, censuses, litter, spawner, chunk loading) under 0.4 ms per tick together.
 
+## M10a: path cost (2026-10-15)
+
+Big Park, one minute per level. The no-visitor baseline in these runs was 7.4 to 7.5 ms.
+
+| Build and settings | 100 visitors | 200 visitors | Worst P99 at 200 | ZooCraft at 200 | Path following at 200 |
+|---|---|---|---|---|---|
+| Shortcuts every tick, follow range 48, off-path cost 1.0 (behaviour before M10a) | 15.7 ms | 23.5 ms | 40.1 ms | 13.9 ms | 8.1 ms |
+| Shortcuts every node, range 48, off-path 0.75 | | 18.4 ms | 36.7 ms | 9.1 ms | 0.44 ms |
+| Same, range 96 | | 27.1 ms | 75.6 ms | 17.7 ms | 1.1 ms |
+| Same, range 128 | | 26.3 ms | 69.8 ms | 17.0 ms | 1.3 ms |
+| **Every node, range 48, off-path 0.75, give up on unreachable targets (M10a)** | **10.2 ms** | **13.3 ms** | 34 ms steady (97 ms once, during the spawning burst) | **3.6 ms** | 0.46 ms |
+
+`/zoo debug perf "Big Park"` at 200 visitors:
+
+| | Path plans per second | Fall short | Each | Stuck visitors |
+|---|---|---|---|---|
+| Before M10a | 45.7 | 87% | 2.3 ms | 17 |
+| Every node, range 48 | 63.0 | 90% | 2.4 ms | 18 |
+| Range 96 | 49.8 | 82% | 5.8 ms | 8 |
+| Range 128 | 41.0 | 73% | 7.0 ms | 10 |
+| M10a | 20.3 | 73% | 2.2 ms | 2 |
+
+What made the difference:
+
+1. **Shortcut checks only when a visitor reaches a new path node** (`simulation.pathShortcutMode = EVERY_NODE`). Path following fell from 8.1 to 0.4 ms per tick at 200 visitors, and visitors walk as fast as before.
+2. **Giving up on unreachable targets quickly.** The most-missed targets were exhibit viewing spots inside the pens. Visitors re-planned to them for 30 seconds per attempt, each plan using the whole search budget. Two plans in a row that can't reach a target within reach of one search now count as a failed route straight away. Plans fell from about 60 to 20 a second, and stuck visitors from 17 to 2.
+3. **Off-path cost 0.75** (`simulation.offPathCost`, was 1.0). Vanilla's path search weighs the remaining distance at 1.5 per block, so a grass step costing 2.0 made searches flood sideways: a 42-block walk across grass couldn't be planned at all. At 0.5 visitors stopped seeking out paths beside them. 0.75 does both.
+4. **Follow range stays 48** (`simulation.visitorFollowRange`). 96 and 128 make every failing search dearer and the tick worse, with fewer stuck visitors only because each search covers more ground.
+
+Result: 200 visitors add 5.9 ms per tick (0.03 ms each), inside the spec target of 8 ms, and the steady P99 stays under 35 ms. Exhibit coverage at 200 visitors: 9 of 212 exhibits never viewed (4%; M9: 7%). The remaining most-missed targets are busy shop counters, which M10b's counter occupancy addresses.
+
 ## Reading `/zoo debug perf`
 
 - **Server tick**: the whole tick, average and worst over the last 30 seconds. Vanilla's budget is 50 ms.

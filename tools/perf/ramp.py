@@ -1,6 +1,6 @@
 """Steps the per-zoo visitor limit and records one minute per step (Phase 3 spec section 6.4).
 
-Usage: python tools/perf/ramp.py <tag> "<zoo1,zoo2,...>" <levels e.g. 0,12,25,50,100,150,200> [--jfr <server pid>]
+Usage: python tools/perf/ramp.py <tag> "<zoo1,zoo2,...>" <levels e.g. 0,12,25,50,100,150,200> [--jfr <server pid>] [--set key=value ...]
 For each level: set maxVisitorsPerZoo, spawn groups with /zoo debug spawn until 90% are there (at most 7 minutes), settle for
 30 s, then log a minute with /zoo debug perf log 60 while sampling /tick query, and append a results line to
 tools/perf/results/<tag>.md. With --jfr, a JFR recording of the same minute goes to tools/perf/results/<tag>-<level>.jfr.
@@ -23,6 +23,16 @@ RESULTS = pathlib.Path(__file__).resolve().parent / "results"
 def set_limit(n):
     text = CONFIG.read_text()
     CONFIG.write_text(re.sub(r"maxVisitorsPerZoo = \d+", f"maxVisitorsPerZoo = {n}", text))
+
+
+def set_config(pairs):
+    text = CONFIG.read_text()
+    for pair in pairs:
+        key, value = pair.split("=", 1)
+        text, n = re.subn(rf"(?m)^(\s*{re.escape(key)} = ).*$", rf"\g<1>{value}", text)
+        if n != 1:
+            sys.exit(f"config key {key} not found exactly once")
+    CONFIG.write_text(text)
 
 
 def visitor_count(r):
@@ -53,6 +63,10 @@ def main():
     if not out.exists():
         out.write_text("| Limit per zoo | Visitors | Avg tick ms | Worst P95 | Worst P99 | ZooCraft ms | Path following ms |\n"
                        "|---|---|---|---|---|---|---|\n")
+    sets = [sys.argv[i + 1] for i, a in enumerate(sys.argv) if a == "--set"]
+    if sets:
+        set_config(sets)
+        time.sleep(3)  # let the config watcher reload
     r = Rcon()
     for n in levels:
         set_limit(n)
