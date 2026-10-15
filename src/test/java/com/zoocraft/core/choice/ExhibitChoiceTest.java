@@ -48,4 +48,33 @@ class ExhibitChoiceTest {
         assertEquals(1, ExhibitChoice.pick(options, Set.of(), false, 0.999));
         assertEquals(-1, ExhibitChoice.pick(List.of(), Set.of(), false, 0.5));
     }
+
+    @Test
+    void farExhibitsInABigZooAreNotStarved() {
+        double scale = ExhibitChoice.routeScale(240, 240);
+        assertEquals(60.0, scale);
+        ExhibitOption near = new ExhibitOption(Set.of("cow"), 10, false, scale, 0, 0, 0, false);
+        ExhibitOption far = new ExhibitOption(Set.of("cow"), 150, false, scale, 0, 0, 0, false);
+        double ratio = ExhibitChoice.weight(near, Set.of(), false) / ExhibitChoice.weight(far, Set.of(), false);
+        double phaseOne = ExhibitChoice.weight(new ExhibitOption(Set.of("cow"), 10, false), Set.of(), false)
+                / ExhibitChoice.weight(new ExhibitOption(Set.of("cow"), 150, false), Set.of(), false);
+        assertTrue(ratio <= 3.0 + 1e-9 && phaseOne > 6, "near/far ratio " + ratio + ", Phase 1 " + phaseOne);
+        assertEquals(16.0, ExhibitChoice.routeScale(30, 40));
+    }
+
+    @Test
+    void overViewedExhibitsLoseWeight() {
+        ExhibitOption popular = new ExhibitOption(Set.of("cow"), 10, false, 16, 40, 10, 0, false);
+        ExhibitOption ignored = new ExhibitOption(Set.of("cow"), 10, false, 16, 0, 10, 0, false);
+        assertTrue(ExhibitChoice.weight(ignored, Set.of(), false) > 2 * ExhibitChoice.weight(popular, Set.of(), false));
+    }
+
+    @Test
+    void aFullExhibitDropsToATenth() {
+        ExhibitOption full = new ExhibitOption(Set.of("cow"), 10, false, 16, 0, 0, 1.0, true);
+        ExhibitOption empty = new ExhibitOption(Set.of("cow"), 10, false, 16, 0, 0, 0, false);
+        assertEquals(0.1, ExhibitChoice.weight(full, Set.of(), false) / ExhibitChoice.weight(empty, Set.of(), false), 1e-9);
+        ExhibitOption half = new ExhibitOption(Set.of("cow"), 10, false, 16, 0, 0, 0.5, false);
+        assertEquals(0.75, ExhibitChoice.weight(half, Set.of(), false) / ExhibitChoice.weight(empty, Set.of(), false), 1e-9);
+    }
 }
