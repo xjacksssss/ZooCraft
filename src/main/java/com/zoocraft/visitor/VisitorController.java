@@ -106,7 +106,7 @@ public final class VisitorController {
         visitor.pathRules = rulesFor(visitor.phase, visitor.zoo().orElse(null));
     }
 
-    static PathRules rulesFor(VisitorPhase phase, @Nullable Zoo zoo) {
+    public static PathRules rulesFor(VisitorPhase phase, @Nullable Zoo zoo) {
         if (zoo == null) {
             return PathRules.ANYWHERE;
         }

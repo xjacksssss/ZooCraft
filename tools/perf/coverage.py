@@ -34,6 +34,9 @@ def stuck(r, zoo):
     m = re.search(r"Stuck visitors: (\d+)", out)
     count = int(m.group(1)) if m else 0
     longest = max([int(s) for s in re.findall(r"for (\d+) s", out)] or [0])
+    if longest > 45:
+        with (RESULTS / "stuck-details.txt").open("a") as f:
+            f.write(next((line for line in out.splitlines() if line.startswith("Stuck visitors")), "") + "\n")
     return count, longest
 
 

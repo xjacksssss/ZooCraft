@@ -265,4 +265,19 @@ public final class VisitorGameTests {
             TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
         });
     }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE)
+    public static void visitorsAdmittedFromAnyQueueSlotMayWalkIn(GameTestHelper helper) {
+        // Admitted visitors keep to the zoo except around gates; the gate area must cover the whole queue.
+        Setup setup = openZoo(helper, 0);
+        com.zoocraft.visitor.PathRules exploring = com.zoocraft.visitor.VisitorController.rulesFor(VisitorPhase.EXPLORING, setup.zoo());
+        List<BlockPos> slots = com.zoocraft.visitor.GateQueues.slots(helper.getLevel(), setup.zoo(), setup.gate());
+        helper.assertTrue(slots.size() >= 4, "only " + slots.size() + " queue slots");
+        for (BlockPos slot : slots) {
+            helper.assertTrue(exploring.allows(slot.getX(), slot.getZ()), "an admitted visitor can't walk from the queue slot at "
+                    + helper.relativePos(slot));
+        }
+        TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
+        helper.succeed();
+    }
 }
