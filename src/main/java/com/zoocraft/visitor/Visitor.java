@@ -108,6 +108,9 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
     /** Shown comments are rate-limited so visitors don't chatter constantly; the effects always apply. */
     private long lastShownComment = Long.MIN_VALUE / 2;
     private static final long COMMENT_GAP_TICKS = 15 * 20;
+    /** Game time of the last look for animals and for litter (runtime only). */
+    long lastViewingCheck = Long.MIN_VALUE / 2;
+    long lastLitterCheck = Long.MIN_VALUE / 2;
     // Exhibit tracking for this visit.
     @Nullable UUID currentExhibit;
     final java.util.Deque<UUID> recentExhibits = new java.util.ArrayDeque<>();

@@ -1,5 +1,6 @@
 package com.zoocraft.visitor;
 
+import com.zoocraft.core.visitor.StepRates;
 import com.zoocraft.config.ZooConfig;
 import com.zoocraft.core.needs.Errand;
 import com.zoocraft.core.needs.Need;
@@ -58,8 +59,6 @@ public final class VisitorErrands {
     static final long SERVE_TICKS = 40;
     /** Shops tried for one errand before giving up for a while. */
     static final int MAX_SHOPS_PER_ERRAND = 2;
-    /** Satisfaction lost each controller step while a need is urgent (1 every 10 seconds). */
-    static final double URGENT_LOSS_PER_STEP = 1.0 / (10 * 20 / VisitorController.STEP);
     static final Set<ProductCategory> REFRESHMENTS = Set.of(ProductCategory.FOOD, ProductCategory.DRINK);
     static final Set<ProductCategory> SOUVENIRS = Set.of(ProductCategory.SOUVENIR);
     static final long TOILET_USE_TICKS = 6 * 20;
@@ -126,14 +125,15 @@ public final class VisitorErrands {
      */
     boolean tickNeeds() {
         Needs needs = visitor.needs;
-        needs.tick(VisitorController.STEP / 20.0);
+        int step = VisitorController.step();
+        needs.tick(StepRates.seconds(step));
         if (needs.urgent(Need.HUNGER)) {
             visitor.remarkOnce(CommentType.STARVING);
-            visitor.changeSatisfaction(-URGENT_LOSS_PER_STEP);
+            visitor.changeSatisfaction(-StepRates.urgentLoss(step));
         }
         if (needs.urgent(Need.TOILET)) {
             visitor.remarkOnce(CommentType.NEED_TOILET);
-            visitor.changeSatisfaction(-URGENT_LOSS_PER_STEP);
+            visitor.changeSatisfaction(-StepRates.urgentLoss(step));
         }
         if (needs.overdue(Need.HUNGER)) {
             visitor.remarkOnce(CommentType.HUNGRY_NO_FOOD);

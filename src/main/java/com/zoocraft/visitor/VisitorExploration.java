@@ -9,6 +9,7 @@ import com.zoocraft.animal.ZooCensus;
 import com.zoocraft.config.ZooConfig;
 import com.zoocraft.core.choice.ExhibitChoice;
 import com.zoocraft.core.choice.ExhibitOption;
+import com.zoocraft.core.visitor.StepRates;
 import com.zoocraft.core.visitor.VisitorProfile;
 import com.zoocraft.feedback.CommentType;
 import com.zoocraft.zoo.Standing;
@@ -110,9 +111,11 @@ final class VisitorExploration {
 
     /** Every step while exploring: look at nearby animals (about once a second). */
     static void observe(Visitor visitor, Zoo zoo, long now) {
-        if (!(visitor.level() instanceof ServerLevel level) || (now / VisitorController.STEP) % 2 != 0) {
+        if (!(visitor.level() instanceof ServerLevel level)
+                || !StepRates.due(now, visitor.lastViewingCheck, ZooConfig.VIEWING_INTERVAL_TICKS.get())) {
             return;
         }
+        visitor.lastViewingCheck = now;
         ZooCensus census = AnimalCensus.cached(zoo);
         if (census.animals().isEmpty()) {
             return;
@@ -159,9 +162,10 @@ final class VisitorExploration {
      * there is a lot of it, spoils the visit a little (Phase 2 spec section 9.4).
      */
     static void noticeLitter(Visitor visitor, Zoo zoo, long now) {
-        if (visitor.getServer() == null || (now / VisitorController.STEP) % 4 != 0) {
+        if (visitor.getServer() == null || !StepRates.due(now, visitor.lastLitterCheck, ZooConfig.LITTER_CHECK_INTERVAL_TICKS.get())) {
             return;
         }
+        visitor.lastLitterCheck = now;
         long timer = SimulationTimers.start();
         try {
             int units = 0;

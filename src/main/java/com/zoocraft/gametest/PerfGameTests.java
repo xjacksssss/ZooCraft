@@ -2,6 +2,7 @@ package com.zoocraft.gametest;
 
 import com.zoocraft.ZooCraft;
 import com.zoocraft.animal.RecognitionReport;
+import com.zoocraft.config.ZooConfig;
 import com.zoocraft.core.perf.PerfSlot;
 import com.zoocraft.core.perf.TimerSlots;
 import com.zoocraft.core.visitor.VisitorProfile;
@@ -144,6 +145,30 @@ public final class PerfGameTests {
         helper.assertTrue(PerfReport.stuckVisitors(List.of()) == 0, "stuck in an empty list");
         helper.assertTrue(PerfReport.mostOnOneTarget(List.of()) == 0, "crowding in an empty list");
         helper.succeed();
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 400)
+    public static void changingTheStepKeepsNeedsRisingAtTheSameRate(GameTestHelper helper) {
+        Setup setup = openZoo(helper, "Stepped");
+        Visitor visitor = exploringVisitor(helper, setup, 30, 24);
+        visitor.testSetNeeds(0, 0);
+        int original = ZooConfig.VISITOR_STEP_TICKS.get();
+        helper.runAfterDelay(100, () -> {
+            double before = visitor.needs().hunger();
+            ZooConfig.VISITOR_STEP_TICKS.set(3);
+            helper.runAfterDelay(100, () -> {
+                double after = visitor.needs().hunger();
+                ZooConfig.VISITOR_STEP_TICKS.set(original);
+                // 5 seconds at either step: the rise must be about the same (needs rise 0.14 to 0.25 per second).
+                double first = before;
+                double second = after - before;
+                helper.assertTrue(first > 0.4 && second > 0.4, "needs didn't rise: " + first + ", " + second);
+                helper.assertTrue(Math.abs(first - second) < 0.35, "rate changed with the step: " + first + " then " + second);
+                visitor.discard();
+                TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
+                helper.succeed();
+            });
+        });
     }
 
     @GameTest(template = GameTestTemplates.FLOOR)

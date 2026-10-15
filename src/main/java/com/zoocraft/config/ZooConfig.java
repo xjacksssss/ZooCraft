@@ -37,6 +37,9 @@ public final class ZooConfig {
     public static final ModConfigSpec.IntValue ENTHUSIAST_MAX;
     public static final ModConfigSpec.IntValue GENERAL_MIN;
     public static final ModConfigSpec.IntValue GENERAL_MAX;
+    public static final ModConfigSpec.IntValue VISITOR_STEP_TICKS;
+    public static final ModConfigSpec.IntValue VIEWING_INTERVAL_TICKS;
+    public static final ModConfigSpec.IntValue LITTER_CHECK_INTERVAL_TICKS;
 
     static {
         ModConfigSpec.Builder b = new ModConfigSpec.Builder();
@@ -117,6 +120,15 @@ public final class ZooConfig {
                 .define("allowZooChunkLoading", true);
         MAX_LOADED_CHUNKS_PER_ZOO = b.comment("Most chunks a single zoo may keep loaded.")
                 .defineInRange("maxLoadedChunksPerZoo", 64, 1, 4096);
+        b.pop();
+
+        b.push("simulation");
+        VISITOR_STEP_TICKS = b.comment("How often, in ticks, each visitor makes its decisions. Higher is cheaper but less responsive.")
+                .defineInRange("visitorStepTicks", 10, 1, 40);
+        VIEWING_INTERVAL_TICKS = b.comment("How often, in ticks, each visitor looks for nearby animals.")
+                .defineInRange("viewingIntervalTicks", 20, 5, 200);
+        LITTER_CHECK_INTERVAL_TICKS = b.comment("How often, in ticks, each visitor notices litter around it.")
+                .defineInRange("litterCheckIntervalTicks", 40, 10, 400);
         b.pop();
 
         SPEC = b.build();

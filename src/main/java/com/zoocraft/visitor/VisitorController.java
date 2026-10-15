@@ -2,6 +2,7 @@ package com.zoocraft.visitor;
 
 import com.zoocraft.config.ZooConfig;
 import com.zoocraft.core.needs.Errand;
+import com.zoocraft.core.visitor.StepRates;
 import com.zoocraft.feedback.CommentType;
 import com.zoocraft.zoo.Gate;
 import com.zoocraft.zoo.Standing;
@@ -24,10 +25,9 @@ import java.util.UUID;
 
 /**
  * Runs one visitor's visit (spec sections 7.4 to 7.7). It only decides phases and walk targets;
- * SmartBrainLib behaviours do the walking. Runs its logic every {@link #STEP} ticks.
+ * SmartBrainLib behaviours do the walking. Runs its logic every {@code simulation.visitorStepTicks} ticks.
  */
 public final class VisitorController {
-    static final int STEP = 10;
     static final float WALK_SPEED = 0.6f;
     /** No progress for this long means the route has failed. */
     static final long NO_PROGRESS_TICKS = 30 * 20;
@@ -39,11 +39,8 @@ public final class VisitorController {
     static final double LOW_SATISFACTION = 15;
     static final double EXHIBIT_ARRIVAL = 2.0;
     static final double ERRAND_ARRIVAL = 1.5;
-    /** Interest lost per step while nothing interesting happens (about six minutes from full). */
-    static final double INTEREST_DECAY_PER_STEP = 100.0 / (6 * 60 * 20 / STEP);
 
     private final Visitor visitor;
-    private int stepOffset = -1;
     private boolean checkedLoad;
 
     // Movement tracking.
@@ -101,6 +98,11 @@ public final class VisitorController {
         return lastSavedTime >= 0 && now - lastSavedTime > maxVisitTicks;
     }
 
+    /** The configured visitor step, in ticks. Read every tick, so a config change applies straight away. */
+    static int step() {
+        return ZooConfig.VISITOR_STEP_TICKS.get();
+    }
+
     static long maxVisitTicks() {
         return ZooConfig.MAX_VISIT_MINUTES.get() * 60L * 20L;
     }
@@ -118,10 +120,8 @@ public final class VisitorController {
             }
             onPhaseChanged();
         }
-        if (stepOffset < 0) {
-            stepOffset = Math.floorMod(visitor.getId(), STEP);
-        }
-        if ((now + stepOffset) % STEP != 0 || visitor.zooId == null) {
+        int step = step();
+        if ((now + Math.floorMod(visitor.getId(), step)) % step != 0 || visitor.zooId == null) {
             // Visitors without a zoo (from a spawn egg) just idle.
             return;
         }
@@ -252,7 +252,7 @@ public final class VisitorController {
         }
         // Wanting to go home is a choice, so it goes through the planner, which may stop for a souvenir first.
         boolean endingByChoice = now - visitor.visitStartTime > maxVisitTicks() || visitor.interest <= 0 || errands.wantsToGoHome();
-        visitor.changeInterest(-INTEREST_DECAY_PER_STEP);
+        visitor.changeInterest(-StepRates.interestDecay(step()));
         VisitorExploration.observe(visitor, zoo, now);
         VisitorExploration.noticeLitter(visitor, zoo, now);
         errands.tickHeld(level, now);
