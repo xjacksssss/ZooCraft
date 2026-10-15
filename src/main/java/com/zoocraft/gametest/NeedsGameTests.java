@@ -251,6 +251,20 @@ public final class NeedsGameTests {
     }
 
     @GameTest(template = GameTestTemplates.FLOOR)
+    public static void reloadedVisitorDoesNotKeepHoldingAPurchase(GameTestHelper helper) {
+        Visitor visitor = ZooEntities.VISITOR.get().create(helper.getLevel());
+        visitor.setItemSlot(net.minecraft.world.entity.EquipmentSlot.MAINHAND, new net.minecraft.world.item.ItemStack(Items.BREAD));
+        CompoundTag saved = new CompoundTag();
+        visitor.saveWithoutId(saved);
+        Visitor copy = ZooEntities.VISITOR.get().create(helper.getLevel());
+        copy.load(saved);
+        helper.assertTrue(copy.getMainHandItem().isEmpty(), "a reloaded visitor would hold its bread for ever");
+        visitor.discard();
+        copy.discard();
+        helper.succeed();
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR)
     public static void phaseOneVisitorLoadsWithFreshNeeds(GameTestHelper helper) {
         Visitor visitor = ZooEntities.VISITOR.get().create(helper.getLevel());
         CompoundTag saved = new CompoundTag();

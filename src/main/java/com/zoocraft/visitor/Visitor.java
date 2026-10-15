@@ -525,6 +525,8 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
         souvenirRoll = visit.contains("souvenirRoll") ? visit.getDouble("souvenirRoll") : getRandom().nextDouble();
         lastStopDone = visit.getBoolean("lastStopDone");
         spentInShops = visit.getInt("spentInShops");
+        // Eating and carrying aren't saved, so a purchase still in hand would never be put away.
+        setItemSlot(EquipmentSlot.MAINHAND, net.minecraft.world.item.ItemStack.EMPTY);
         if (tag.contains("VillagerData")) {
             VillagerData.CODEC.parse(net.minecraft.nbt.NbtOps.INSTANCE, tag.get("VillagerData")).result().ifPresent(this::setVillagerData);
         }
