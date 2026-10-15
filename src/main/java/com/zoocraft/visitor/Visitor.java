@@ -466,6 +466,11 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
         errands.startCarryingRubbish(level().getGameTime());
     }
 
+    /** A random spot near {@code around}, as a group follower or a visitor with nothing to see would pick. */
+    public java.util.Optional<BlockPos> testRandomSpotNear(BlockPos around, int radius) {
+        return zoo().flatMap(zoo -> VisitorExploration.randomSpot(this, zoo, (ServerLevel) level(), around, radius));
+    }
+
     public void testSetInterest(double interest) {
         this.interest = interest;
     }

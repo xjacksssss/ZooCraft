@@ -115,7 +115,8 @@ final class VisitorExploration {
         for (int i = 0; i < ATTEMPTS; i++) {
             int x = around.getX() + visitor.getRandom().nextInt(radius * 2 + 1) - radius;
             int z = around.getZ() + visitor.getRandom().nextInt(radius * 2 + 1) - radius;
-            if (!zoo.shape().containsBlock(x, z) || !level.isLoaded(new BlockPos(x, 0, z))) {
+            // Never inside a pen: visitors can't get in, and each try costs a path search.
+            if (!zoo.shape().containsBlock(x, z) || !level.isLoaded(new BlockPos(x, 0, z)) || AnimalCensus.insidePen(zoo, x, z)) {
                 continue;
             }
             Optional<BlockPos> feet = Standing.findInColumn(level, x, around.getY(), z, 4);

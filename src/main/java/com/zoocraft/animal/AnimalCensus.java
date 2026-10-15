@@ -225,6 +225,19 @@ public final class AnimalCensus {
         }
     }
 
+    /** Whether (x, z) is on the floor of one of the zoo's bounded enclosures: somewhere visitors can't walk to. */
+    public static boolean insidePen(Zoo zoo, int x, int z) {
+        List<Exhibit> exhibits = EXHIBITS.get(zoo.id());
+        if (exhibits != null) {
+            for (Exhibit exhibit : exhibits) {
+                if (exhibit.enclosure().bounded() && exhibit.enclosure().contains(x, z)) {
+                    return true;
+                }
+            }
+        }
+        return false;
+    }
+
     public static int pendingFills() {
         return PENDING.size();
     }
@@ -317,7 +330,7 @@ public final class AnimalCensus {
             double distance = 2.5 + (radius - 3.0) * ((i % 4) / 3.0);
             int x = (int) Math.floor(animal.x + Math.cos(angle) * distance);
             int z = (int) Math.floor(animal.z + Math.sin(angle) * distance);
-            if (!zoo.shape().containsBlock(x, z) || !level.isLoaded(new BlockPos(x, 0, z))) {
+            if (!zoo.shape().containsBlock(x, z) || !level.isLoaded(new BlockPos(x, 0, z)) || insidePen(zoo, x, z)) {
                 continue;
             }
             Optional<BlockPos> feet = Standing.findInColumn(level, x, (int) Math.floor(centre.y), z, 3);

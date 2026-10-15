@@ -322,4 +322,23 @@ public final class AnimalGameTests {
             helper.succeed();
         });
     }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 100)
+    public static void wanderSpotsBesideAPenStayOutOfIt(GameTestHelper helper) {
+        // A group follower picks a spot within 3 blocks of its leader; a leader at a pen-side spot mustn't send it into the pen.
+        ServerPlayer owner = TestZoos.player(helper, "Owner");
+        Zoo zoo = crowdScene(helper, owner); // pen floor at x and z 20..23
+        Visitor visitor = PerfGameTests.exploringVisitor(helper, setupOf(owner, zoo), 17, 21);
+        helper.assertTrue(AnimalCensus.cached(zoo).exhibits().getFirst().enclosure().bounded(), "pen not found");
+        BlockPos origin = helper.absolutePos(BlockPos.ZERO);
+        for (int i = 0; i < 200; i++) {
+            visitor.testRandomSpotNear(helper.absolutePos(new BlockPos(18, 2, 21)), 3).ifPresent(spot -> {
+                int x = spot.getX() - origin.getX(), z = spot.getZ() - origin.getZ();
+                helper.assertFalse(x >= 20 && x <= 23 && z >= 20 && z <= 23, "a wander spot inside the pen at " + x + "," + z);
+            });
+        }
+        visitor.discard();
+        TestZoos.cleanUp(helper, owner, zoo);
+        helper.succeed();
+    }
 }
