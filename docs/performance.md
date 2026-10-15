@@ -78,6 +78,59 @@ After the M10a review, a plan only counts as a miss when its path ends more than
 
 Result: 200 visitors add 6 to 7 ms per tick (about 0.035 ms each), inside the spec target of 8 ms, with P99 under 50 ms. Exhibit coverage at 200 visitors: 9 of 212 exhibits never viewed (4%; M9: 7%). The remaining most-missed targets are busy shop counters, which M10b's counter occupancy addresses.
 
+## M10b and M11: crowds, exhibits and routes (2026-10-15)
+
+Big Park, one minute per level, timings at the normal 20 ticks per second.
+
+| Build | Baseline | 100 visitors | 200 visitors | Added at 200 | Worst P99 at 200 | ZooCraft at 200 |
+|---|---|---|---|---|---|---|
+| M10a (for comparison) | 7.8 ms | | 14.7 ms | +6.9 ms | 40.5 ms | 4.9 ms |
+| First M10b+M11 build | 7.6 ms | 10.2 ms | 14.3 ms | +6.7 ms | 34.0 ms | 4.5 ms |
+| **Final (with the fixes below)** | **7.3 ms** | **10.8 ms** | **12.5 ms** | **+5.2 ms** | **30.7 ms** | **3.0 ms** |
+
+The final baseline sample still had 22 visitors walking out, so it reads slightly high; against the clean 7.6 ms baseline
+of the first run, 200 visitors add 4.9 ms (about 0.025 ms each). The worst P99 at 100 visitors (42 ms) came from the
+spawning burst.
+
+`/zoo debug perf "Big Park"` at 200 visitors:
+
+| | Path plans per second | Fall short | Of a nearby target | Each | Stuck visitors |
+|---|---|---|---|---|---|
+| M10a | 33.5 | 80% | | 2.3 ms | 8 (under 30 s) |
+| First M10b+M11 build | 35.9 | 84% | | 2.0 ms | 10 (up to 79 s) |
+| Final | 33.5 (10 per visitor-minute) | **20%** | 9% | 0.93 ms | 0 |
+
+Exhibit coverage, Big Park, 100 visitors, 20 minutes of game time (`coverage.py`, the later runs with `--sprint`):
+
+| Build | Exhibits viewed | Median views | Busiest | Busiest / median | Longest stuck |
+|---|---|---|---|---|---|
+| First M10b+M11 build | 100% of 210 | 16 | 79 | 4.9 | 86 s |
+| With bin, gate and region fixes | 100% | 20 | 101 | 5.0 | 37 s |
+| Final (popularity exponent 1) | 100% | 20-21 | 90-91 | 4.3-4.5 | 13 s, then none |
+
+What the measurements found and what fixed it:
+
+1. **Viewing spots were inside the pens** (M10a's most-missed targets). Enclosure fills put spots just outside each pen
+   (207 of 210 Big Park exhibits are bounded pens with 12 spots each).
+2. **Wander spots inside pens.** Group followers pick a block near their leader, often inside the pen the leader stands
+   beside; such paths end within 2 blocks, so they never counted as misses and visitors retried for 90 seconds. Wander
+   spots and spots sampled round open exhibits now avoid pens.
+3. **Rubbish bins were walkable to the path search** (smaller than a full block), so visitors snagged on them for up to
+   90 seconds. Bins now block paths.
+4. **Long walks ended in dead ends.** A partial path towards an exhibit 100+ blocks away heads for the reachable block
+   nearest it, often against a pen fence, and re-planning finds the same dead end. Targets beyond 36 blocks are now
+   walked via waypoints about 24 blocks ahead, outside pens, paths first. This is most of the drop from 80% to 20% short
+   plans.
+5. **Visitors admitted from outer queue slots couldn't walk in** (path rules allowed only 2.5 blocks round a gate; the
+   new queue slots reach 4.5). The gate area is now 5 blocks.
+6. **Escaped animals merged with a pen** (camels step over fences) made the whole exhibit open and put spots inside the
+   pen. Fills now run region by region.
+7. **Popularity:** an exhibit's choice weight now falls in proportion to its views over the median (exponent 1; the spec
+   said 0.5, which measured 5.0 times the median). The remaining skew is layout: Big Park has one species per row, and
+   the rows beside the main paths from the gates are seen by most passers-by whatever visitors choose.
+
+Not measured: the four-zoo layout at 200 visitors (left for M12's sign-off runs), and a 200-visitor coverage run.
+
 ## Reading `/zoo debug perf`
 
 - **Server tick**: the whole tick, average and worst over the last 30 seconds. Vanilla's budget is 50 ms.
@@ -90,10 +143,18 @@ Result: 200 visitors add 6 to 7 ms per tick (about 0.035 ms each), inside the sp
 - **Timers measure elapsed time** on the server thread, so they include anything that stalls it (allocation, GC).
   A profiler such as JFR or spark samples CPU instead; expect the two to differ, and use the timers to compare
   before and after.
-- **Stuck visitors**: admitted visitors that haven't got closer to their target for 10 seconds. A few for a moment is
-  normal in crowds; the same ones for a minute is a problem worth reporting.
-- **Exhibits**: views per exhibit since each exhibit was first counted. Many never-viewed exhibits mean visitors
-  can't reach them or don't choose them.
+- **Path plans**: plans per second and per visitor-minute, the share that fall short of their target, and the share
+  that fall short of a target within one search (36 blocks). Long walks get partial plans by design; near misses are the
+  ones worth looking at, with the "most missed path targets" line.
+- **Stuck visitors**: admitted visitors that haven't got closer to their target for 10 seconds, counting through
+  retries, each with its phase, target, distance and retries. A few for a moment is normal in crowds; the same ones for
+  a minute is a problem worth reporting.
+- **Crowding**: the most visitors holding one viewing spot (capacity `animals.viewingSpotCapacity`), one gate queue slot,
+  and one counter or toilet.
+- **Enclosure checks**: time spent finding exhibits' enclosures (at most `animals.enclosureFillsPerTick` per tick).
+- **Exhibits**: views per exhibit since each exhibit was first counted, and today's (game day) views. Many
+  never-viewed exhibits mean visitors can't reach them or don't choose them. `/zoo debug perf exhibits "<zoo>"` writes
+  every exhibit's numbers to `logs/zoocraft-exhibits.csv`.
 
 `/zoo debug perf log <seconds>` writes the same numbers once a second to `logs/zoocraft-perf.csv`.
 

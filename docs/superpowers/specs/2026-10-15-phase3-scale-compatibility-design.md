@@ -83,6 +83,13 @@ The M9 timers reproduced section 3.2 within 15% and added two things JFR had hid
 
 M10a result (details in `docs/performance.md`): most plans were aimed at viewing spots inside pens and retried for 30 seconds each. Shortcuts only at new path nodes, giving up after two plans that can't reach a nearby target, and an off-path cost of 0.75 (the vanilla search can't plan 40 blocks of grass at 1.0) bring 200 visitors to 6 to 7 ms over the baseline, meeting the section 7.1 target without the cached block checks or the re-plan gap. The follow range stays 48: 96 and 128 measured worse. Cached block checks (7.1 item 2) and the far-visitor fallback (7.5) are not needed.
 
+M10b and M11 result (details in `docs/performance.md`, "M10b and M11"): with enclosure-edge viewing spots and the fixes
+the measurements led to (wander spots out of pens, bins no longer walkable, waypoints for long walks, a gate area that
+covers the queue, region-by-region fills), 200 visitors add about 5 ms in Big Park (P99 31 ms), path plans that fall
+short dropped from 80% to 20%, and no visitor was stuck for over 60 seconds. At 100 visitors for 20 minutes every
+exhibit was viewed; the busiest got 4.3 to 4.5 times the median views (target 4), the rest being passers-by on the main
+paths. Route choice uses popularity with exponent 1 rather than 0.5 (section 8.3). The four-zoo layout wasn't rerun.
+
 ## 4. Key decisions
 
 ### 4.1 Fix path following inside ZooCraft, not by forking SmartBrainLib
@@ -361,8 +368,10 @@ Repeat the Phase 1 M4 check with the M12 jar: install a NeoForge 21.1.251 dedica
 | `simulation.viewingIntervalTicks` | server | 20 (current behaviour) |
 | `simulation.litterCheckIntervalTicks` | server | 40 (current behaviour) |
 | `simulation.pathShortcutMode` | server | `EVERY_NODE` (`EVERY_TICK` = SmartBrainLib's behaviour, `OFF`) |
-| `simulation.pathReplanGap` | server | 20 ticks |
-| `simulation.farVisitorDistance` / `farVisitorStepMultiplier` | server | 64 / 2 (only if section 7.5 is built) |
+| `simulation.visitorFollowRange` | server | 48 blocks (M10a; 96 and 128 measured worse) |
+| `simulation.offPathCost` | server | 0.75 (M10a; was a constant 1.0) |
+| `simulation.pathReplanGap` | server | Not built: M10a measured it as unnecessary |
+| `simulation.farVisitorDistance` / `farVisitorStepMultiplier` | server | Not built: section 7.1's target was met without section 7.5 |
 | `animals.maxViewingSpots` | server | 12 |
 | `animals.viewingSpotCapacity` | server | 2 |
 | `animals.maxEnclosureArea` | server | 1,024 |
@@ -391,6 +400,8 @@ Each milestone gets its plan just before it starts and ends with a play-test che
 5. **Route choice favours unseen and less-visited exhibits** more than Phase 1 did (8.3), so visitors walk further in big zoos.
 6. **Default limits change** to whatever section 9.2 gives, probably higher than 12 and 40.
 7. **Visitors mostly ignore players:** a 10% chance of a 1 to 2 second glance at a player within 6 blocks, then 20 to 40 seconds before the next (7.6).
+8. **Rating grades** (chosen in M11, not in the GDD): Excellent from 80, Good from 60, Fair from 40, Poor below. Viewing access counts nothing when visitors reach the spots but see no animals.
+9. **Long walks go via waypoints** about 24 blocks ahead, preferring paths (M11 measurement fix); visitors may bend a little towards paths on long walks.
 
 ## 13. Known risks
 
