@@ -62,6 +62,10 @@ public class VisitorNavigation extends SmoothGroundNavigation {
                 BlockPos target = targets.iterator().next();
                 if (result == null || !result.canReach()) {
                     SimulationTimers.count(PerfSlot.VISITOR_PATH_SHORT, zooId());
+                    // Far targets get partial paths by design; a short plan to a near one is a real miss.
+                    if (mob.distanceToSqr(target.getX() + 0.5, target.getY(), target.getZ() + 0.5) <= nearSq()) {
+                        SimulationTimers.count(PerfSlot.VISITOR_PATH_SHORT_NEAR, zooId());
+                    }
                     MissedTargets.record(target);
                     noteMiss(target, result);
                 } else {
@@ -84,6 +88,11 @@ public class VisitorNavigation extends SmoothGroundNavigation {
     private static final double CLOSE_ENOUGH = 2.0;
     /** Getting at least this much closer since the last miss is progress, so the count starts again. */
     private static final double PROGRESS = 1.0;
+
+    private static double nearSq() {
+        double near = ZooConfig.VISITOR_FOLLOW_RANGE.get() * NEAR_SHARE;
+        return near * near;
+    }
 
     private void noteMiss(BlockPos target, @Nullable Path result) {
         if (result != null && result.getDistToTarget() <= CLOSE_ENOUGH) {

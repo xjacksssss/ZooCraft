@@ -78,8 +78,12 @@ public final class PerfReport {
         StringBuilder stuckLine = new StringBuilder("Stuck visitors: " + stuck.size());
         for (int i = 0; i < Math.min(STUCK_SHOWN, stuck.size()); i++) {
             Visitor v = stuck.get(i);
+            BlockPos target = v.walkTarget();
             stuckLine.append(i == 0 ? " (" : ", ").append(v.blockPosition().toShortString())
-                    .append(" for ").append(v.stuckTicks() / 20).append(" s");
+                    .append(" for ").append(v.stuckTicks() / 20).append(" s, ").append(v.phase().name().toLowerCase(Locale.ROOT))
+                    .append(target == null ? "" : String.format(Locale.ROOT, " to %s %.1f away", target.toShortString(),
+                            Math.sqrt(v.distanceToSqr(target.getX() + 0.5, target.getY(), target.getZ() + 0.5))))
+                    .append(", ").append(v.controller().failedRoutesForTest()).append(" retries");
         }
         lines.add(Component.literal(stuck.isEmpty() ? stuckLine.toString() : stuckLine.append(")").toString()));
         long now = server.overworld().getGameTime();
@@ -162,7 +166,7 @@ public final class PerfReport {
         List<PerfSlot> slots = new ArrayList<>();
         for (PerfSlot slot : PerfSlot.values()) {
             if (slot != PerfSlot.SERVER_TICK && slot != PerfSlot.ZOOCRAFT_TOTAL && slot != PerfSlot.VISITOR_PATH_SHORT
-                    && t.calls(slot.ordinal()) > 0) {
+                    && slot != PerfSlot.VISITOR_PATH_SHORT_NEAR && t.calls(slot.ordinal()) > 0) {
                 slots.add(slot);
             }
         }
@@ -198,11 +202,13 @@ public final class PerfReport {
         double seconds = Math.max(1, t.ticks()) / 20.0;
         long plans = t.calls(PerfSlot.VISITOR_PATHFINDING.ordinal());
         long shortOnes = t.calls(PerfSlot.VISITOR_PATH_SHORT.ordinal());
+        long nearOnes = t.calls(PerfSlot.VISITOR_PATH_SHORT_NEAR.ordinal());
         double each = plans == 0 ? 0 : ms(t.averageNanos(PerfSlot.VISITOR_PATHFINDING.ordinal())) * t.ticks() / plans;
         double perVisitorMinute = visitors == 0 ? 0 : plans / seconds * 60 / visitors;
         return Component.literal(String.format(Locale.ROOT,
-                "   Path plans: %.1f per second (%.1f per visitor-minute), %.0f%% fall short of their target, %.2f ms each",
-                plans / seconds, perVisitorMinute, plans == 0 ? 0 : 100.0 * shortOnes / plans, each));
+                "   Path plans: %.1f per second (%.1f per visitor-minute), %.0f%% fall short of their target "
+                        + "(%.0f%% of a target within one search), %.2f ms each",
+                plans / seconds, perVisitorMinute, plans == 0 ? 0 : 100.0 * shortOnes / plans, plans == 0 ? 0 : 100.0 * nearOnes / plans, each));
     }
 
     private static String phases(List<Visitor> visitors) {

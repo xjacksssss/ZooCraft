@@ -117,6 +117,7 @@ public final class PerfGameTests {
             helper.assertTrue(zoo.contains("Exhibits"), "coverage line missing:\n" + zoo);
             helper.assertTrue(zoo.contains("Crowding: most on one viewing spot"), "crowding line missing:\n" + zoo);
             helper.assertTrue(zoo.contains("per visitor-minute"), "plans per visitor-minute missing:\n" + zoo);
+            helper.assertTrue(zoo.contains("within one search"), "near misses missing:\n" + zoo);
             visitor.discard();
             TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
             helper.succeed();
@@ -361,10 +362,17 @@ public final class PerfGameTests {
         BlockPos from = helper.absolutePos(new BlockPos(4, 2, 4));
         visitor.moveTo(from.getX() + 0.5, from.getY(), from.getZ() + 0.5, 0, 0);
         helper.getLevel().addFreshEntity(visitor);
+        long[] near = new long[1];
         helper.runAfterDelay(3, () -> {
             BlockPos target = helper.absolutePos(inside);
+            near[0] = SimulationTimers.global().calls(PerfSlot.VISITOR_PATH_SHORT_NEAR.ordinal(), 1000);
             visitor.getNavigation().createPath(target, 0);
             helper.assertTrue(MissedTargets.top(50).stream().anyMatch(m -> m.pos().equals(target)), "the walled-in target isn't listed");
+        });
+        // Counts reach the timer history when the tick ends.
+        helper.runAfterDelay(5, () -> {
+            helper.assertTrue(SimulationTimers.global().calls(PerfSlot.VISITOR_PATH_SHORT_NEAR.ordinal(), 1000) > near[0],
+                    "a target 22 blocks away, within one search, wasn't counted as a near miss");
             visitor.discard();
             helper.succeed();
         });

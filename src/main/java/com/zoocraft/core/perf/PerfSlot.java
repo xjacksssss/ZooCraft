@@ -9,6 +9,7 @@ public enum PerfSlot {
     VISITOR_NAVIGATION("visitor path following"),
     VISITOR_PATHFINDING("visitor path planning"),
     VISITOR_PATH_SHORT("visitor paths that fall short"),
+    VISITOR_PATH_SHORT_NEAR("visitor paths that fall short of a target within one search"),
     ANIMAL_CENSUS("animal census"),
     FACILITY_CENSUS("facility census"),
     ENCLOSURE("enclosure checks"),
