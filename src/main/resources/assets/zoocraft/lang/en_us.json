@@ -259,5 +259,13 @@
   "item.zoocraft.rubbish_wrapper": "Sweet Wrapper",
   "item.zoocraft.rubbish_cup": "Paper Cup",
   "item.zoocraft.rubbish_paper": "Scrap of Paper",
-  "entity.zoocraft.litter": "Litter"
+  "entity.zoocraft.litter": "Litter",
+  "zoocraft.comment.rubbish_everywhere": "Why is there rubbish everywhere?",
+  "zoocraft.alert.bin_full": "The bin at (%s, %s) is full. Empty it.",
+  "zoocraft.alert.litter_hotspot": "Litter is piling up near (%s, %s). Clear it up or add a bin nearby.",
+  "zoocraft.screen.dashboard.cleanliness": "Cleanliness",
+  "zoocraft.screen.dashboard.litter_collected": "%s piece(s) of litter picked up",
+  "zoocraft.cleanliness.clean": "Clean",
+  "zoocraft.cleanliness.some_litter": "A little litter",
+  "zoocraft.cleanliness.dirty": "Dirty"
 }

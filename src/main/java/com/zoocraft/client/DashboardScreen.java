@@ -1,5 +1,6 @@
 package com.zoocraft.client;
 
+import com.zoocraft.core.litter.Cleanliness;
 import com.zoocraft.core.shop.PriceRules;
 import com.zoocraft.core.shop.ProductCategory;
 import com.zoocraft.dashboard.DashboardAction;
@@ -400,8 +401,12 @@ public class DashboardScreen extends Screen {
         y += LINE + 4;
         bar(g, x, y, Component.translatable("zoocraft.screen.dashboard.satisfaction"), s.satisfaction());
         bar(g, x, y + LINE + 2, Component.translatable("zoocraft.screen.dashboard.reputation"), s.reputation());
+        bar(g, x, y + 2 * (LINE + 2), Component.translatable("zoocraft.screen.dashboard.cleanliness"), s.cleanliness());
+        g.drawString(font, Component.translatable("zoocraft.cleanliness." + Cleanliness.label(s.cleanliness()))
+                .append(" · ").append(Component.translatable("zoocraft.screen.dashboard.litter_collected", s.litterCollected())),
+                x, y + 3 * LINE + 8, MUTED);
         long openGates = s.gates().stream().filter(gate -> gate.status() == GateStatus.OPEN.ordinal()).count();
-        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.gates", s.gates().size(), openGates), x, y + 2 * LINE + 10, MUTED);
+        g.drawString(font, Component.translatable("zoocraft.screen.dashboard.gates", s.gates().size(), openGates), x, y + 4 * LINE + 10, MUTED);
 
         int rx = left + PANEL_WIDTH / 2 + 6;
         int width = PANEL_WIDTH / 2 - 16;

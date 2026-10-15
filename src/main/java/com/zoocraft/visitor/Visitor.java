@@ -93,6 +93,8 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
     int spentInShops;
     /** Compared against the littering chance, so whether a visitor litters is fixed per visitor. */
     double litterRoll = Math.random();
+    /** Times this visitor has been surrounded by litter; the third time, it complains. */
+    int litterSeen;
 
     // Runtime only.
     final VisitorController controller = new VisitorController(this);
@@ -493,6 +495,7 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
         visit.putBoolean("lastStopDone", lastStopDone);
         visit.putInt("spentInShops", spentInShops);
         visit.putDouble("litterRoll", litterRoll);
+        visit.putInt("litterSeen", litterSeen);
         tag.put("ZooVisit", visit);
         VillagerData.CODEC.encodeStart(net.minecraft.nbt.NbtOps.INSTANCE, getVillagerData()).result().ifPresent(t -> tag.put("VillagerData", t));
     }
@@ -538,6 +541,7 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
         lastStopDone = visit.getBoolean("lastStopDone");
         spentInShops = visit.getInt("spentInShops");
         litterRoll = visit.contains("litterRoll") ? visit.getDouble("litterRoll") : getRandom().nextDouble();
+        litterSeen = visit.getInt("litterSeen");
         // Eating and carrying aren't saved, so a purchase still in hand would never be put away.
         setItemSlot(EquipmentSlot.MAINHAND, net.minecraft.world.item.ItemStack.EMPTY);
         if (tag.contains("VillagerData")) {

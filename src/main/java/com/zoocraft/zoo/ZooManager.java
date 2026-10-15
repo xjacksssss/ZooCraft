@@ -757,6 +757,12 @@ public final class ZooManager {
         data.setDirty();
     }
 
+    /** A visitor looked around: cleanliness moves a small step towards what it saw. */
+    public void recordCleanlinessSample(Zoo zoo, double sample) {
+        zoo.stats().cleanliness = com.zoocraft.core.litter.Cleanliness.blend(zoo.stats().cleanliness, sample);
+        data.setDirty();
+    }
+
     /** A player picked up a piece of litter in the zoo. */
     public void recordLitterCollected(Zoo zoo) {
         zoo.stats().litterCollected++;
@@ -798,6 +804,8 @@ public final class ZooManager {
         if (phaseOneShape) {
             tag.remove("facilities");
             tag.getCompound("ledger").remove("totalShopSales");
+            tag.getCompound("stats").remove("litterCollected");
+            tag.getCompound("stats").remove("cleanliness");
         }
         Zoo copy = Zoo.CODEC.parse(net.minecraft.nbt.NbtOps.INSTANCE, tag).getOrThrow();
         data.remove(zoo);

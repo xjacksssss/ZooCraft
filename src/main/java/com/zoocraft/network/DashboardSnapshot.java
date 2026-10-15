@@ -27,7 +27,7 @@ public record DashboardSnapshot(
         UUID zooId, String name, String ownerName, boolean viewerIsOwner,
         boolean open, int price, int maxPrice, boolean keepLoaded, boolean chunkLoadingAllowed,
         long treasury, long admissionIncome, long shopIncome, int attendanceToday, long attendanceTotal, long refused, int visitorsNow,
-        float satisfaction, float reputation,
+        float satisfaction, float reputation, float cleanliness, long litterCollected,
         List<Component> alerts, List<CommentLine> comments, List<SpeciesLine> species, List<ExhibitLine> exhibits,
         List<GateLine> gates, List<ManagerLine> managers, List<ShopLine> shops, List<ToiletLine> toilets) implements CustomPacketPayload {
 
@@ -70,7 +70,7 @@ public record DashboardSnapshot(
     public DashboardSnapshot withOpenScreen(boolean openScreen) {
         return new DashboardSnapshot(openScreen, tab, zooId, name, ownerName, viewerIsOwner, open, price, maxPrice, keepLoaded,
                 chunkLoadingAllowed, treasury, admissionIncome, shopIncome, attendanceToday, attendanceTotal, refused, visitorsNow,
-                satisfaction, reputation, alerts, comments, species, exhibits, gates, managers, shops, toilets);
+                satisfaction, reputation, cleanliness, litterCollected, alerts, comments, species, exhibits, gates, managers, shops, toilets);
     }
 
     public static final StreamCodec<RegistryFriendlyByteBuf, DashboardSnapshot> STREAM_CODEC = StreamCodec.of(DashboardSnapshot::write, DashboardSnapshot::read);
@@ -99,6 +99,8 @@ public record DashboardSnapshot(
         buf.writeVarInt(s.visitorsNow);
         buf.writeFloat(s.satisfaction);
         buf.writeFloat(s.reputation);
+        buf.writeFloat(s.cleanliness);
+        buf.writeVarLong(s.litterCollected);
         writeList(buf, s.alerts, (b, c) -> TEXT.encode(b, c));
         writeList(buf, s.comments, (b, c) -> {
             TEXT.encode(b, c.text());
@@ -150,7 +152,7 @@ public record DashboardSnapshot(
                 buf.readBoolean(), buf.readVarInt(), buf.readUUID(), buf.readUtf(), buf.readUtf(), buf.readBoolean(),
                 buf.readBoolean(), buf.readVarInt(), buf.readVarInt(), buf.readBoolean(), buf.readBoolean(),
                 buf.readVarLong(), buf.readVarLong(), buf.readVarLong(), buf.readVarInt(), buf.readVarLong(), buf.readVarLong(), buf.readVarInt(),
-                buf.readFloat(), buf.readFloat(),
+                buf.readFloat(), buf.readFloat(), buf.readFloat(), buf.readVarLong(),
                 readList(buf, TEXT::decode),
                 readList(buf, b -> new CommentLine(TEXT.decode(b), b.readVarInt())),
                 readList(buf, b -> new SpeciesLine(TEXT.decode(b), b.readVarInt())),

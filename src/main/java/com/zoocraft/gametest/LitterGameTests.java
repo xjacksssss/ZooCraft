@@ -9,6 +9,10 @@ import com.zoocraft.litter.Littering;
 import com.zoocraft.registry.ZooEntities;
 import com.zoocraft.zoo.Zoo;
 import com.zoocraft.zoo.ZooManager;
+import com.zoocraft.dashboard.DashboardService;
+import com.zoocraft.dashboard.DashboardTab;
+import com.zoocraft.feedback.CommentType;
+import net.minecraft.network.chat.Component;
 import com.zoocraft.shop.FacilityCensus;
 import com.zoocraft.visitor.Visitor;
 import com.zoocraft.visitor.VisitorPhase;
@@ -144,6 +148,59 @@ public final class LitterGameTests {
             helper.assertTrue(s.visitor().isAlive(), "visitor gone");
             finish(helper, s);
         });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 600)
+    public static void visitorAmongLitterLowersCleanlinessAndComplainsOnce(GameTestHelper helper) {
+        Scene s = rubbishScene(helper, 0.99, () -> { });
+        for (int i = 0; i < 5; i++) {
+            Littering.drop(helper.getLevel(), s.zoo(), at(helper, 23 + i % 3, 23 + i / 3), i);
+        }
+        BlockPos start = helper.absolutePos(START);
+        helper.onEachTick(() -> s.visitor().teleportTo(start.getX() + 0.5, start.getY(), start.getZ() + 0.5));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(s.zoo().stats().cleanliness() < 100, "cleanliness still " + s.zoo().stats().cleanliness());
+            int complaints = s.zoo().stats().commentTally().getOrDefault(CommentType.RUBBISH_EVERYWHERE.key(), 0);
+            helper.assertTrue(complaints == 1, "rubbish complaints: " + complaints);
+            finish(helper, s);
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR)
+    public static void overviewWarnsAboutFullBinsAndLitterHotspots(GameTestHelper helper) {
+        ServerPlayer owner = TestZoos.player(helper, "Owner");
+        Zoo zoo = TestZoos.create(helper, owner, "Alerts", TestZoos.rectangle(helper, 2, 2, 29, 29));
+        RubbishBinBlockEntity bin = placeBin(helper, BIN);
+        while (bin.deposit()) {
+            // fill it up
+        }
+        for (int i = 0; i < 4; i++) {
+            Littering.drop(helper.getLevel(), zoo, at(helper, 20, 20), i);
+        }
+        FacilityCensus.refresh(zoo, helper.getLevel());
+        List<String> alerts = DashboardService.snapshot(owner, zoo, DashboardTab.OVERVIEW).alerts().stream().map(c -> c.getString()).toList();
+        BlockPos binAt = helper.absolutePos(BIN);
+        String full = Component.translatable("zoocraft.alert.bin_full", binAt.getX(), binAt.getZ()).getString();
+        helper.assertTrue(alerts.contains(full), "no full-bin alert in " + alerts);
+        helper.assertTrue(alerts.stream().anyMatch(a -> a.startsWith("Litter is piling up near")), "no hotspot alert in " + alerts);
+        clearLitter(zoo);
+        TestZoos.cleanUp(helper, owner, zoo);
+        helper.succeed();
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR)
+    public static void aZooSavedBeforeCleanlinessExistedStartsClean(GameTestHelper helper) {
+        ServerPlayer owner = TestZoos.player(helper, "Owner");
+        ZooManager zoos = TestZoos.manager(helper);
+        Zoo zoo = TestZoos.create(helper, owner, "Old Clean", TestZoos.rectangle(helper, 2, 2, 29, 29));
+        for (int i = 0; i < 20; i++) {
+            zoos.recordCleanlinessSample(zoo, 0);
+        }
+        helper.assertTrue(zoo.stats().cleanliness() < 50, "samples did not lower cleanliness");
+        Zoo reloaded = zoos.reloadForTest(zoo, true);
+        helper.assertTrue(reloaded.stats().cleanliness() == 100, "an old zoo should load as clean, got " + reloaded.stats().cleanliness());
+        TestZoos.cleanUp(helper, owner, reloaded);
+        helper.succeed();
     }
 
     @GameTest(template = GameTestTemplates.FLOOR)

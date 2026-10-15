@@ -11,6 +11,10 @@ import com.zoocraft.core.visitor.VisitorProfile;
 import com.zoocraft.feedback.CommentType;
 import com.zoocraft.zoo.Standing;
 import com.zoocraft.zoo.Zoo;
+import com.zoocraft.zoo.ZooManager;
+import com.zoocraft.core.litter.Cleanliness;
+import com.zoocraft.litter.LitterEntity;
+import com.zoocraft.litter.LitterTracker;
 import net.minecraft.core.BlockPos;
 import net.minecraft.server.level.ServerLevel;
 import net.minecraft.world.entity.Mob;
@@ -140,6 +144,34 @@ final class VisitorExploration {
                     visitor.remarkOnce(CommentType.MANY_ANIMALS);
                 }
                 visitor.getLookControl().setLookAt(animal);
+            }
+        }
+    }
+
+    private static final double LITTER_SIGHT = 8;
+    private static final int LITTER_UNITS_THAT_BOTHER = 3;
+    private static final int SIGHTINGS_BEFORE_COMPLAINT = 3;
+
+    /**
+     * Every 2 seconds while exploring: counts the litter around the visitor, feeds the zoo's cleanliness and, when
+     * there is a lot of it, spoils the visit a little (Phase 2 spec section 9.4).
+     */
+    static void noticeLitter(Visitor visitor, Zoo zoo, long now) {
+        if (visitor.getServer() == null || (now / VisitorController.STEP) % 4 != 0) {
+            return;
+        }
+        int units = 0;
+        for (LitterEntity litter : LitterTracker.litterIn(zoo)) {
+            if (litter.distanceToSqr(visitor) <= LITTER_SIGHT * LITTER_SIGHT) {
+                units += litter.pile();
+            }
+        }
+        ZooManager.get(visitor.getServer()).recordCleanlinessSample(zoo, Cleanliness.sample(units));
+        if (units >= LITTER_UNITS_THAT_BOTHER) {
+            visitor.changeSatisfaction(-2);
+            visitor.litterSeen++;
+            if (visitor.litterSeen >= SIGHTINGS_BEFORE_COMPLAINT) {
+                visitor.remarkOnce(CommentType.RUBBISH_EVERYWHERE);
             }
         }
     }

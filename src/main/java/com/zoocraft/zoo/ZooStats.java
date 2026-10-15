@@ -14,7 +14,8 @@ public final class ZooStats {
             Codec.LONG.fieldOf("dayNumber").forGetter(s -> s.dayNumber),
             Codec.LONG.fieldOf("refusedAdmissions").forGetter(s -> s.refusedAdmissions),
             Codec.unboundedMap(Codec.STRING, Codec.INT).fieldOf("commentTally").forGetter(s -> s.commentTally),
-            Codec.LONG.optionalFieldOf("litterCollected", 0L).forGetter(s -> s.litterCollected)
+            Codec.LONG.optionalFieldOf("litterCollected", 0L).forGetter(s -> s.litterCollected),
+            Codec.DOUBLE.optionalFieldOf("cleanliness", 100.0).forGetter(s -> s.cleanliness)
     ).apply(i, ZooStats::new));
 
     long totalAttendance;
@@ -23,19 +24,26 @@ public final class ZooStats {
     long refusedAdmissions;
     final Map<String, Integer> commentTally;
     long litterCollected;
+    /** 0 to 100, built from what visitors see (Phase 2 spec section 9.4). */
+    double cleanliness;
 
     public ZooStats() {
-        this(0, 0, 0, 0, Map.of(), 0);
+        this(0, 0, 0, 0, Map.of(), 0, 100);
     }
 
     private ZooStats(long totalAttendance, int attendanceToday, long dayNumber, long refusedAdmissions, Map<String, Integer> commentTally,
-                     long litterCollected) {
+                     long litterCollected, double cleanliness) {
         this.totalAttendance = totalAttendance;
         this.attendanceToday = attendanceToday;
         this.dayNumber = dayNumber;
         this.refusedAdmissions = refusedAdmissions;
         this.commentTally = new HashMap<>(commentTally);
         this.litterCollected = litterCollected;
+        this.cleanliness = cleanliness;
+    }
+
+    public double cleanliness() {
+        return cleanliness;
     }
 
     /** Pieces of litter players have picked up, ever. */

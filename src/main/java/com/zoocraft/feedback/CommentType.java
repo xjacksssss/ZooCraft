@@ -28,7 +28,9 @@ public enum CommentType {
     SHOP_TOO_EXPENSIVE(-3, true),
     CANT_AFFORD(-2, true),
     TASTY(4, false),
-    SOUVENIR(5, false);
+    SOUVENIR(5, false),
+    // Phase 2: litter (Phase 2 spec section 9.4).
+    RUBBISH_EVERYWHERE(-5, true);
 
     private final int satisfactionEffect;
     private final boolean complaint;

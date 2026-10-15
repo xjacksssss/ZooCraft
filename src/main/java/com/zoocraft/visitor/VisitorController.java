@@ -252,6 +252,7 @@ public final class VisitorController {
         boolean endingByChoice = now - visitor.visitStartTime > maxVisitTicks() || visitor.interest <= 0 || errands.wantsToGoHome();
         visitor.changeInterest(-INTEREST_DECAY_PER_STEP);
         VisitorExploration.observe(visitor, zoo, now);
+        VisitorExploration.noticeLitter(visitor, zoo, now);
         errands.tickHeld(level, now);
         errands.tickRubbish(zoo, level, now);
         if (endingByChoice && target != null && !errands.active()) {

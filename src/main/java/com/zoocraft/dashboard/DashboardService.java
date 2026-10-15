@@ -11,6 +11,10 @@ import com.zoocraft.feedback.CommentType;
 import com.zoocraft.network.DashboardPayloads;
 import com.zoocraft.network.DashboardSnapshot;
 import com.zoocraft.shop.ProductCatalog;
+import com.zoocraft.shop.FacilityCensus;
+import com.zoocraft.shop.FacilitySnapshot;
+import com.zoocraft.core.litter.LitterHotspots;
+import com.zoocraft.litter.LitterTracker;
 import com.zoocraft.shop.ShopStock;
 import com.zoocraft.visitor.VisitorTracker;
 import com.zoocraft.zoo.ActionResult;
@@ -55,6 +59,9 @@ public final class DashboardService {
     private static final int REFRESH_TICKS = 20;
     private static final int TOP_COMMENTS = 6;
     private static final int MAX_PRODUCTS = 64;
+    private static final int HOTSPOT_CELL = 16;
+    private static final int HOTSPOT_MIN_UNITS = 3;
+    private static final int HOTSPOT_LIMIT = 3;
 
     private record Subscription(UUID zooId, DashboardTab tab) {
     }
@@ -234,6 +241,17 @@ public final class DashboardService {
                 alerts.add(Component.translatable("zoocraft.alert.gate_" + status.getSerializedName(), gate.pos().getX(), gate.pos().getZ()));
             }
         }
+        // Litter (Phase 2 spec section 9): full bins and where litter is piling up.
+        for (FacilitySnapshot.BinState bin : FacilityCensus.cached(zoo).bins()) {
+            if (!bin.usable()) {
+                alerts.add(Component.translatable("zoocraft.alert.bin_full", bin.pos().getX(), bin.pos().getZ()));
+            }
+        }
+        List<LitterHotspots.Point> litter = LitterTracker.litterIn(zoo).stream()
+                .map(l -> new LitterHotspots.Point(l.getBlockX(), l.getBlockZ(), l.pile())).toList();
+        for (LitterHotspots.Hotspot spot : LitterHotspots.find(litter, HOTSPOT_CELL, HOTSPOT_MIN_UNITS, HOTSPOT_LIMIT)) {
+            alerts.add(Component.translatable("zoocraft.alert.litter_hotspot", spot.centreX(), spot.centreZ()));
+        }
         List<DashboardSnapshot.ExhibitLine> exhibits = new ArrayList<>();
         for (Exhibit exhibit : census.exhibits()) {
             Component label = speciesLabel(exhibit, census);
@@ -285,6 +303,7 @@ public final class DashboardService {
                 zoo.ledger().balance(), zoo.ledger().totalAdmission(), zoo.ledger().totalShopSales(),
                 zoo.stats().attendanceToday(), zoo.stats().totalAttendance(),
                 zoo.stats().refusedAdmissions(), VisitorTracker.count(zoo.id()), zoo.satisfaction(), zoo.reputation(),
+                (float) zoo.stats().cleanliness(), zoo.stats().litterCollected(),
                 alerts, comments, species, exhibits, gates, managers, shops, toilets);
     }
 
