@@ -115,6 +115,8 @@ public final class PerfGameTests {
             String zoo = String.join("\n", PerfReport.zoo(helper.getLevel().getServer(), setup.zoo()).stream().map(Component::getString).toList());
             helper.assertTrue(zoo.contains("Stuck visitors: 0"), "stuck line missing:\n" + zoo);
             helper.assertTrue(zoo.contains("Exhibits"), "coverage line missing:\n" + zoo);
+            helper.assertTrue(zoo.contains("Crowding: most on one viewing spot"), "crowding line missing:\n" + zoo);
+            helper.assertTrue(zoo.contains("per visitor-minute"), "plans per visitor-minute missing:\n" + zoo);
             visitor.discard();
             TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
             helper.succeed();
@@ -527,5 +529,44 @@ public final class PerfGameTests {
     private static RecognitionReport.Entry find(List<RecognitionReport.Entry> entries, String id) {
         return entries.stream().filter(e -> e.id().toString().equals(id)).findFirst()
                 .orElseThrow(() -> new IllegalStateException(id + " missing from the report"));
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 600)
+    public static void aVisitorHemmedInByOthersStepsAsideBeforeFailing(GameTestHelper helper) {
+        // Visitors aren't solid to each other, so a real crowd only slows a walker down. To make it stall for sure, the
+        // walker can't move at all (speed 0) while three visitors stand pressed round it; its route itself is fine.
+        Setup setup = openZoo(helper, "Hemmed");
+        Visitor visitor = exploringVisitor(helper, setup, 24, 24);
+        visitor.getAttribute(net.minecraft.world.entity.ai.attributes.Attributes.MOVEMENT_SPEED).setBaseValue(0);
+        helper.spawnWithNoFreeWill(ZooEntities.VISITOR.get(), new BlockPos(25, 2, 24));
+        helper.spawnWithNoFreeWill(ZooEntities.VISITOR.get(), new BlockPos(24, 2, 25));
+        helper.spawnWithNoFreeWill(ZooEntities.VISITOR.get(), new BlockPos(25, 2, 25));
+        helper.runAfterDelay(3, () -> visitor.controller().testWalkTo(helper.absolutePos(new BlockPos(38, 2, 24))));
+        helper.succeedWhen(() -> {
+            helper.assertTrue(visitor.controller().stepAsides() >= 1, "never stepped aside; stalled " + visitor.ticksWithoutProgress());
+            helper.assertTrue(visitor.controller().failedRoutesForTest() == 0, "counted a failure before stepping aside");
+            helper.assertTrue(visitor.stuckTicks() > 100, "stuck time " + visitor.stuckTicks());
+            visitor.discard();
+            TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 100)
+    public static void exhibitListGoesToACsv(GameTestHelper helper) {
+        Setup setup = openZoo(helper, "Listed");
+        helper.spawnWithNoFreeWill(EntityType.PIG, new BlockPos(30, 2, 30));
+        com.zoocraft.animal.AnimalCensus.refresh(setup.zoo(), helper.getLevel());
+        Path file;
+        List<String> lines;
+        try {
+            file = PerfReport.writeExhibits(helper.getLevel().getServer(), setup.zoo());
+            lines = Files.readAllLines(file);
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+        helper.assertTrue(lines.getFirst().startsWith("zoo,exhibit,species,x,z,views_total,views_today"), "bad header: " + lines.getFirst());
+        helper.assertTrue(lines.size() == 2 && lines.get(1).contains("minecraft:pig"), "rows: " + lines);
+        TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
+        helper.succeed();
     }
 }

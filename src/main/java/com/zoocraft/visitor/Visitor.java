@@ -290,6 +290,11 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
         return claimedSpot;
     }
 
+    /** How long this visitor has been no closer to its target, counting through retries (for {@code /zoo debug perf}). */
+    public long stuckTicks() {
+        return controller.stuckTicks(level().getGameTime());
+    }
+
     public @Nullable BlockPos walkTarget() {
         return controller.target();
     }

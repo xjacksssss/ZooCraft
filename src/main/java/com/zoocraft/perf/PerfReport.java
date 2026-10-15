@@ -3,6 +3,8 @@ package com.zoocraft.perf;
 import com.zoocraft.animal.AnimalCensus;
 import com.zoocraft.animal.Exhibit;
 import com.zoocraft.config.ZooConfig;
+import com.zoocraft.shop.FacilityOccupancy;
+import com.zoocraft.visitor.GateQueues;
 import com.zoocraft.core.perf.PerfSlot;
 import com.zoocraft.core.perf.TimerSlots;
 import com.zoocraft.visitor.Visitor;
@@ -15,6 +17,9 @@ import net.minecraft.core.BlockPos;
 import net.minecraft.network.chat.Component;
 import net.minecraft.server.MinecraftServer;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
 import java.util.ArrayList;
 import java.util.Arrays;
 import java.util.Comparator;
@@ -43,7 +48,7 @@ public final class PerfReport {
                 tick, ms(t.worstNanos(PerfSlot.SERVER_TICK.ordinal())), total, tick > 0 ? 100 * total / tick : 0,
                 ms(t.worstNanos(PerfSlot.ZOOCRAFT_TOTAL.ordinal())))));
         lines.addAll(slotLines(t));
-        lines.add(planLine(t));
+        lines.add(planLine(t, VisitorTracker.total()));
         lines.add(Component.literal(String.format(Locale.ROOT, "Visitors: %d of %d allowed on the server.", VisitorTracker.total(),
                 ZooConfig.MAX_VISITORS_TOTAL.get())));
         for (Zoo zoo : ZooManager.get(server).all()) {
@@ -65,19 +70,27 @@ public final class PerfReport {
                 .withStyle(ChatFormatting.AQUA, ChatFormatting.BOLD));
         SimulationTimers.forZoo(zoo.id()).ifPresent(t -> {
             lines.addAll(slotLines(t));
-            lines.add(planLine(t));
+            lines.add(planLine(t, visitors.size()));
         });
 
-        List<Visitor> stuck = visitors.stream().filter(v -> v.admitted() && v.ticksWithoutProgress() > STUCK_TICKS)
-                .sorted(Comparator.comparingLong(Visitor::ticksWithoutProgress).reversed()).toList();
+        List<Visitor> stuck = visitors.stream().filter(v -> v.admitted() && v.stuckTicks() > STUCK_TICKS)
+                .sorted(Comparator.comparingLong(Visitor::stuckTicks).reversed()).toList();
         StringBuilder stuckLine = new StringBuilder("Stuck visitors: " + stuck.size());
         for (int i = 0; i < Math.min(STUCK_SHOWN, stuck.size()); i++) {
             Visitor v = stuck.get(i);
             stuckLine.append(i == 0 ? " (" : ", ").append(v.blockPosition().toShortString())
-                    .append(" for ").append(v.ticksWithoutProgress() / 20).append(" s");
+                    .append(" for ").append(v.stuckTicks() / 20).append(" s");
         }
         lines.add(Component.literal(stuck.isEmpty() ? stuckLine.toString() : stuckLine.append(")").toString()));
-        lines.add(Component.literal("Most visitors heading for one spot: " + mostOnOneTarget(visitors)));
+        long now = server.overworld().getGameTime();
+        int mostAtSpot = 0;
+        for (Exhibit exhibit : AnimalCensus.cached(zoo).exhibits()) {
+            mostAtSpot = Math.max(mostAtSpot, exhibit.claims().maxCount(now));
+        }
+        lines.add(Component.literal(String.format(Locale.ROOT,
+                "Crowding: most on one viewing spot %d (capacity %d), most on one gate queue slot %d, most at one counter or toilet %d."
+                        + " Most heading for one block: %d", mostAtSpot, ZooConfig.VIEWING_SPOT_CAPACITY.get(), GateQueues.maxOnOneSlot(now),
+                FacilityOccupancy.maxCount(now), mostOnOneTarget(visitors))));
         lines.add(missedLine(server, zoo));
 
         List<Exhibit> exhibits = AnimalCensus.cached(zoo).exhibits();
@@ -88,22 +101,47 @@ public final class PerfReport {
             long never = Arrays.stream(views).filter(v -> v == 0).count();
             lines.add(Component.literal(String.format(Locale.ROOT, "Exhibits: %d, views per exhibit min %d, median %d, max %d, never viewed %d",
                     views.length, views[0], views[views.length / 2], views[views.length - 1], never)));
+            int[] today = exhibits.stream().mapToInt(e -> e.viewsToday(now)).sorted().toArray();
+            long neverToday = Arrays.stream(today).filter(v -> v == 0).count();
+            lines.add(Component.literal(String.format(Locale.ROOT, "   Today: min %d, median %d, max %d, not viewed today %d; enclosure searches waiting %d",
+                    today[0], today[today.length / 2], today[today.length - 1], neverToday, AnimalCensus.pendingFills())));
         }
         return lines;
     }
 
-    /** Admitted visitors that have not got closer to their target for {@link #STUCK_TICKS}. */
+    /**
+     * {@code /zoo debug perf exhibits}: one line per exhibit to {@code logs/zoocraft-exhibits.csv}, for the harness's
+     * coverage runs.
+     */
+    public static Path writeExhibits(MinecraftServer server, Zoo zoo) throws IOException {
+        Path file = server.getServerDirectory().resolve("logs").resolve("zoocraft-exhibits.csv");
+        Files.createDirectories(file.getParent());
+        long now = server.overworld().getGameTime();
+        StringBuilder out = new StringBuilder("zoo,exhibit,species,x,z,views_total,views_today,rating,spots,bounded,area\n");
+        for (Exhibit e : AnimalCensus.cached(zoo).exhibits()) {
+            out.append('"').append(zoo.name().replace("\"", "")).append("\",").append(e.id()).append(',')
+                    .append(String.join(" ", e.species().stream().sorted().toList())).append(',')
+                    .append((int) Math.floor(e.centre().x)).append(',').append((int) Math.floor(e.centre().z)).append(',')
+                    .append(e.viewCount()).append(',').append(e.viewsToday(now)).append(',').append(e.rating().score()).append(',')
+                    .append(e.viewingSpots().size()).append(',').append(e.enclosure().bounded()).append(',').append(e.enclosure().area())
+                    .append('\n');
+        }
+        Files.writeString(file, out);
+        return file;
+    }
+
+    /** Admitted visitors that have not got closer to their target for {@link #STUCK_TICKS}, counting through retries. */
     public static int stuckVisitors(List<Visitor> visitors) {
         int stuck = 0;
         for (Visitor v : visitors) {
-            if (v.admitted() && v.ticksWithoutProgress() > STUCK_TICKS) {
+            if (v.admitted() && v.stuckTicks() > STUCK_TICKS) {
                 stuck++;
             }
         }
         return stuck;
     }
 
-    /** The most visitors walking to, or standing at, the same block. M10 replaces this with real occupancy counts. */
+    /** The most visitors walking to, or standing at, the same block. */
     public static int mostOnOneTarget(List<Visitor> visitors) {
         Map<BlockPos, Integer> counts = new HashMap<>();
         int most = 0;
@@ -156,13 +194,15 @@ public final class PerfReport {
         return Component.literal("Most missed path targets: " + (parts.isEmpty() ? "none" : String.join("; ", parts)));
     }
 
-    private static Component planLine(TimerSlots t) {
+    private static Component planLine(TimerSlots t, int visitors) {
         double seconds = Math.max(1, t.ticks()) / 20.0;
         long plans = t.calls(PerfSlot.VISITOR_PATHFINDING.ordinal());
         long shortOnes = t.calls(PerfSlot.VISITOR_PATH_SHORT.ordinal());
         double each = plans == 0 ? 0 : ms(t.averageNanos(PerfSlot.VISITOR_PATHFINDING.ordinal())) * t.ticks() / plans;
-        return Component.literal(String.format(Locale.ROOT, "   Path plans: %.1f per second, %.0f%% fall short of their target, %.2f ms each",
-                plans / seconds, plans == 0 ? 0 : 100.0 * shortOnes / plans, each));
+        double perVisitorMinute = visitors == 0 ? 0 : plans / seconds * 60 / visitors;
+        return Component.literal(String.format(Locale.ROOT,
+                "   Path plans: %.1f per second (%.1f per visitor-minute), %.0f%% fall short of their target, %.2f ms each",
+                plans / seconds, perVisitorMinute, plans == 0 ? 0 : 100.0 * shortOnes / plans, each));
     }
 
     private static String phases(List<Visitor> visitors) {

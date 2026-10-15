@@ -14,7 +14,7 @@ import net.minecraft.network.chat.Component;
 import java.io.IOException;
 import java.nio.file.Path;
 
-/** {@code /zoo debug perf}, {@code /zoo debug perf <zoo>} and {@code /zoo debug perf log <seconds>}. */
+/** {@code /zoo debug perf}, {@code /zoo debug perf <zoo>}, {@code /zoo debug perf log <seconds>} and {@code /zoo debug perf exhibits <zoo>}. */
 final class PerfCommands {
     private PerfCommands() {
     }
@@ -24,6 +24,8 @@ final class PerfCommands {
                 .executes(PerfCommands::server)
                 .then(Commands.literal("log").then(Commands.argument("seconds", IntegerArgumentType.integer(1, 3600))
                         .executes(PerfCommands::log)))
+                .then(Commands.literal("exhibits").then(Commands.argument("zoo", StringArgumentType.string()).suggests(ZooCommands.ZOO_NAMES)
+                        .executes(c -> exhibits(c, ZooCommands.namedZoo(c)))))
                 .then(Commands.argument("zoo", StringArgumentType.string()).suggests(ZooCommands.ZOO_NAMES)
                         .executes(c -> zoo(c, ZooCommands.namedZoo(c))));
     }
@@ -37,6 +39,17 @@ final class PerfCommands {
         server(c);
         PerfReport.zoo(c.getSource().getServer(), zoo).forEach(line -> c.getSource().sendSuccess(() -> line, false));
         return 1;
+    }
+
+    private static int exhibits(CommandContext<CommandSourceStack> c, Zoo zoo) {
+        try {
+            Path file = PerfReport.writeExhibits(c.getSource().getServer(), zoo);
+            c.getSource().sendSuccess(() -> Component.literal("Wrote " + zoo.name() + "'s exhibits to " + file), false);
+            return 1;
+        } catch (IOException e) {
+            c.getSource().sendFailure(Component.literal("Couldn't write the exhibit list: " + e.getMessage()));
+            return 0;
+        }
     }
 
     private static int log(CommandContext<CommandSourceStack> c) {

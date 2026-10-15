@@ -3,6 +3,7 @@ package com.zoocraft.visitor;
 import com.zoocraft.config.ZooConfig;
 import com.zoocraft.core.crowd.GateChoice;
 import com.zoocraft.core.needs.Errand;
+import com.zoocraft.core.visitor.Progress;
 import com.zoocraft.core.visitor.StepRates;
 import com.zoocraft.feedback.CommentType;
 import com.zoocraft.zoo.Gate;
@@ -42,14 +43,24 @@ public final class VisitorController {
     static final double LOW_SATISFACTION = 15;
     static final double EXHIBIT_ARRIVAL = 2.0;
     static final double ERRAND_ARRIVAL = 1.5;
+    /** No progress for this long with others pressing round means the visitor is hemmed in (Phase 3 spec section 7.4). */
+    static final long CROWD_TICKS = 5 * 20;
+    /** More than this many other visitors within a block is a crowd. */
+    static final int CROWD_SIZE = 2;
+    static final long STEP_ASIDE_TICKS = 3 * 20;
+    static final int STEP_ASIDE_RADIUS = 3;
 
     private final Visitor visitor;
     private boolean checkedLoad;
 
     // Movement tracking.
     private @Nullable BlockPos target;
-    private double bestDistance = Double.MAX_VALUE;
-    private long lastProgressTime;
+    private final Progress progress = new Progress();
+    // Stepping aside from a crowd: once per target, for up to STEP_ASIDE_TICKS.
+    private boolean steppedAside;
+    private long stepAsideUntil;
+    private @Nullable BlockPos asideSpot;
+    private int stepAsides;
     private int failedRoutes;
     private long lingerUntil;
 
@@ -398,8 +409,9 @@ public final class VisitorController {
         }
         if (target == null) {
             target = awayPoint(level, zoo);
-            bestDistance = Double.MAX_VALUE;
-            lastProgressTime = now;
+            progress.onTarget(now);
+            steppedAside = false;
+            stepAsideUntil = 0;
         }
         if (closeTo(target, 2.0)) {
             visitor.releaseNow(null);
@@ -452,8 +464,9 @@ public final class VisitorController {
             nav.forgetAllMisses();
         }
         target = pos;
-        bestDistance = Double.MAX_VALUE;
-        lastProgressTime = visitor.level().getGameTime();
+        progress.onTarget(visitor.level().getGameTime());
+        steppedAside = false;
+        stepAsideUntil = 0;
         BrainUtils.setMemory(visitor, MemoryModuleType.WALK_TARGET, new WalkTarget(pos, WALK_SPEED, 1));
     }
 
@@ -466,11 +479,17 @@ public final class VisitorController {
         if (!pos.equals(target)) {
             setTarget(pos);
         }
-        double distance = Math.sqrt(visitor.distanceToSqr(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5));
-        if (distance < bestDistance - 0.5) {
-            bestDistance = distance;
-            lastProgressTime = now;
+        if (stepAsideUntil != 0) {
+            if (now < stepAsideUntil && !closeTo(asideSpot, 1.0)) {
+                return false; // still stepping aside
+            }
+            // Back to the real target, with one fresh plan.
+            stepAsideUntil = 0;
+            progress.onStepAside(now);
+            BrainUtils.setMemory(visitor, MemoryModuleType.WALK_TARGET, new WalkTarget(pos, WALK_SPEED, 1));
         }
+        double distance = Math.sqrt(visitor.distanceToSqr(pos.getX() + 0.5, pos.getY(), pos.getZ() + 0.5));
+        progress.update(distance, now);
         if (!BrainUtils.hasMemory(visitor, MemoryModuleType.WALK_TARGET)) {
             BrainUtils.setMemory(visitor, MemoryModuleType.WALK_TARGET, new WalkTarget(pos, WALK_SPEED, 1));
         }
@@ -480,17 +499,53 @@ public final class VisitorController {
             nav.forgetMisses(pos);
             return routeFailed(now);
         }
-        if (now - lastProgressTime > NO_PROGRESS_TICKS) {
+        long stalled = progress.ticksWithoutProgress(now);
+        // Hemmed in by other visitors: step aside and try again before counting a failure, so crowding alone never
+        // marks an exhibit or facility unreachable (spec 7.4). The entity check only runs once a visitor has stalled.
+        if (!steppedAside && stalled > CROWD_TICKS && hemmedIn()) {
+            stepAside(now);
+            return false;
+        }
+        if (stalled > NO_PROGRESS_TICKS) {
             return routeFailed(now);
         }
         return false;
     }
 
+    private boolean hemmedIn() {
+        return visitor.level().getEntitiesOfClass(Visitor.class, visitor.getBoundingBox().inflate(1.0), v -> v != visitor).size() > CROWD_SIZE;
+    }
+
+    /** Walks to a random standable block within a few blocks (inside the zoo while visiting), then back to the target. */
+    private void stepAside(long now) {
+        steppedAside = true;
+        if (!(visitor.level() instanceof ServerLevel level)) {
+            return;
+        }
+        Zoo zoo = visitor.zoo().orElse(null);
+        boolean inside = zoo != null && (visitor.phase == VisitorPhase.EXPLORING || visitor.phase == VisitorPhase.LEAVING);
+        for (int i = 0; i < 10; i++) {
+            int x = visitor.getBlockX() + visitor.getRandom().nextInt(STEP_ASIDE_RADIUS * 2 + 1) - STEP_ASIDE_RADIUS;
+            int z = visitor.getBlockZ() + visitor.getRandom().nextInt(STEP_ASIDE_RADIUS * 2 + 1) - STEP_ASIDE_RADIUS;
+            if (!level.isLoaded(new BlockPos(x, 0, z))) {
+                continue;
+            }
+            Optional<BlockPos> feet = Standing.findInColumn(level, x, visitor.getBlockY(), z, 2);
+            if (feet.isPresent() && !feet.get().equals(visitor.blockPosition()) && (!inside || goodSpot(level, zoo, feet.get()))) {
+                asideSpot = feet.get();
+                stepAsideUntil = now + STEP_ASIDE_TICKS;
+                stepAsides++;
+                visitor.getNavigation().stop();
+                BrainUtils.setMemory(visitor, MemoryModuleType.WALK_TARGET, new WalkTarget(asideSpot, WALK_SPEED, 0));
+                return;
+            }
+        }
+    }
+
     /** Counts a failed route and starts the next attempt afresh; true when the route has failed too often. */
     private boolean routeFailed(long now) {
         failedRoutes++;
-        lastProgressTime = now;
-        bestDistance = Double.MAX_VALUE;
+        progress.onRouteFailed(now);
         visitor.getNavigation().stop();
         BrainUtils.clearMemory(visitor, MemoryModuleType.WALK_TARGET);
         return failedRoutes >= MAX_FAILED_ROUTES;
@@ -562,7 +617,26 @@ public final class VisitorController {
         return target;
     }
 
+    /** Times this visitor has stepped aside from a crowd (for tests and debugging). */
+    public int stepAsides() {
+        return stepAsides;
+    }
+
+    public int failedRoutesForTest() {
+        return failedRoutes;
+    }
+
+    /** GameTests only: heads for {@code pos} as an exploring visitor would, with no exhibit or errand. */
+    public void testWalkTo(BlockPos pos) {
+        setTarget(pos);
+    }
+
+    /** How long the visitor has been no closer to its target, through retries and steps aside; 0 with no target. */
+    public long stuckTicks(long now) {
+        return target == null ? 0 : progress.stuckTicks(now);
+    }
+
     public long ticksWithoutProgress(long now) {
-        return target == null ? 0 : now - lastProgressTime;
+        return target == null ? 0 : progress.ticksWithoutProgress(now);
     }
 }
