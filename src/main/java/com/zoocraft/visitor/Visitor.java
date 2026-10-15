@@ -133,6 +133,7 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
         return Mob.createMobAttributes()
                 .add(Attributes.MAX_HEALTH, 20.0)
                 .add(Attributes.MOVEMENT_SPEED, 0.5)
+                // The navigation's node budget is sized from this; VisitorNavigation scales it to simulation.visitorFollowRange.
                 .add(Attributes.FOLLOW_RANGE, 48.0);
     }
 

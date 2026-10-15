@@ -1,5 +1,6 @@
 package com.zoocraft.visitor;
 
+import com.zoocraft.config.ZooConfig;
 import com.zoocraft.core.perf.PerfSlot;
 import com.zoocraft.perf.SimulationTimers;
 import net.minecraft.core.BlockPos;
@@ -45,7 +46,10 @@ public class VisitorNavigation extends SmoothGroundNavigation {
         long timer = SimulationTimers.start();
         Path result = null;
         try {
-            result = super.createPath(targets, regionOffset, offsetUpward, accuracy, followRange);
+            // The node budget was sized for the attribute's range when this navigation was built; scale it to the setting.
+            float range = ZooConfig.VISITOR_FOLLOW_RANGE.get();
+            setMaxVisitedNodesMultiplier(range / 48.0f);
+            result = super.createPath(targets, regionOffset, offsetUpward, accuracy, range);
             return result;
         } finally {
             SimulationTimers.stop(PerfSlot.VISITOR_PATHFINDING, zooId(), timer);

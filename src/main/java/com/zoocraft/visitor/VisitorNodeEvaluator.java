@@ -1,5 +1,6 @@
 package com.zoocraft.visitor;
 
+import com.zoocraft.config.ZooConfig;
 import com.zoocraft.registry.ZooTags;
 import net.minecraft.core.BlockPos;
 import net.minecraft.core.Direction;
@@ -21,17 +22,23 @@ import java.util.Set;
  * {@code zoocraft:visitor_paths}, and treat closed fence gates like doors that can be opened.
  */
 public class VisitorNodeEvaluator extends WalkNodeEvaluator {
-    /** Extra cost for walking on anything that is not a path block. */
-    static final float OFF_PATH_COST = 1.0f;
 
     private final Set<Node> adjusted = Collections.newSetFromMap(new IdentityHashMap<>());
     private PathRules rules = PathRules.ANYWHERE;
+    /**
+     * Extra cost for walking on anything that is not a path block, read once per search. Vanilla's A* weighs the
+     * remaining distance at 1.5 per block: a step cost well above 1.5 makes searches across open ground flood sideways
+     * and run out of nodes, and one at 1.5 or below makes the search ignore paths beside the straight line. 0.75 keeps
+     * both working (Phase 3 spec section 3.4).
+     */
+    private float offPathCost = 0.75f;
 
     @Override
     public void prepare(PathNavigationRegion level, Mob mob) {
         super.prepare(level, mob);
         adjusted.clear();
         rules = mob instanceof Visitor visitor ? visitor.pathRules() : PathRules.ANYWHERE;
+        offPathCost = ZooConfig.OFF_PATH_COST.get().floatValue();
     }
 
     @Override
@@ -52,7 +59,7 @@ public class VisitorNodeEvaluator extends WalkNodeEvaluator {
         if (adjusted.add(node)) {
             BlockState floor = currentContext.getBlockState(new BlockPos(node.x, node.y - 1, node.z));
             if (!floor.is(ZooTags.VISITOR_PATHS)) {
-                node.costMalus += OFF_PATH_COST;
+                node.costMalus += offPathCost;
             }
         }
         return node;

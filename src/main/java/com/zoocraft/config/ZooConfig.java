@@ -40,6 +40,8 @@ public final class ZooConfig {
     public static final ModConfigSpec.IntValue VISITOR_STEP_TICKS;
     public static final ModConfigSpec.IntValue VIEWING_INTERVAL_TICKS;
     public static final ModConfigSpec.IntValue LITTER_CHECK_INTERVAL_TICKS;
+    public static final ModConfigSpec.IntValue VISITOR_FOLLOW_RANGE;
+    public static final ModConfigSpec.DoubleValue OFF_PATH_COST;
 
     static {
         ModConfigSpec.Builder b = new ModConfigSpec.Builder();
@@ -129,6 +131,13 @@ public final class ZooConfig {
                 .defineInRange("viewingIntervalTicks", 20, 5, 200);
         LITTER_CHECK_INTERVAL_TICKS = b.comment("How often, in ticks, each visitor notices litter around it.")
                 .defineInRange("litterCheckIntervalTicks", 40, 10, 400);
+        VISITOR_FOLLOW_RANGE = b.comment("How far, in blocks, one visitor path search reaches. Longer walks are split into several searches.",
+                        "Bigger values reach far targets in one search but each search can cost more.")
+                .defineInRange("visitorFollowRange", 48, 16, 128);
+        OFF_PATH_COST = b.comment("Extra cost per block for visitors walking off player-built paths. Higher makes them keep to paths more,",
+                        "but path searches across open ground get more expensive and fall short sooner. At 0.5 or below visitors",
+                        "stop seeking out nearby paths; at 1.0 they can't plan 40 blocks across grass in one search.")
+                .defineInRange("offPathCost", 0.75, 0.0, 2.0);
         b.pop();
 
         SPEC = b.build();

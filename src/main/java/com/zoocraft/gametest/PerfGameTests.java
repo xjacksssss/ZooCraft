@@ -199,6 +199,53 @@ public final class PerfGameTests {
         });
     }
 
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 100)
+    public static void followRangeComesFromConfig(GameTestHelper helper) {
+        Visitor visitor = ZooEntities.VISITOR.get().create(helper.getLevel());
+        BlockPos from = helper.absolutePos(new BlockPos(2, 2, 2));
+        visitor.moveTo(from.getX() + 0.5, from.getY(), from.getZ() + 0.5, 0, 0);
+        helper.getLevel().addFreshEntity(visitor);
+        BlockPos target = helper.absolutePos(new BlockPos(44, 2, 2)); // 42 blocks away
+        int original = ZooConfig.VISITOR_FOLLOW_RANGE.get();
+        helper.runAfterDelay(2, () -> {
+            ZooConfig.VISITOR_FOLLOW_RANGE.set(16);
+            net.minecraft.world.level.pathfinder.Path tooShort = visitor.getNavigation().createPath(target, 0);
+            visitor.getNavigation().stop();
+            ZooConfig.VISITOR_FOLLOW_RANGE.set(48);
+            net.minecraft.world.level.pathfinder.Path farEnough = visitor.getNavigation().createPath(target, 0);
+            ZooConfig.VISITOR_FOLLOW_RANGE.set(original);
+            helper.assertTrue(tooShort == null || !tooShort.canReach(), "a 16-block range reached 42 blocks away");
+            helper.assertTrue(farEnough != null && farEnough.canReach(), "a 48-block range didn't reach 42 blocks away");
+            visitor.discard();
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 100)
+    public static void visitorsStillPreferAPathAlongside(GameTestHelper helper) {
+        // A stone brick strip (a path block that doesn't fall) two blocks to the side of a 30-block walk across grass.
+        for (int x = 2; x <= 36; x++) {
+            helper.setBlock(new BlockPos(x, 1, 6), net.minecraft.world.level.block.Blocks.STONE_BRICKS);
+        }
+        Visitor visitor = ZooEntities.VISITOR.get().create(helper.getLevel());
+        BlockPos from = helper.absolutePos(new BlockPos(4, 2, 4));
+        visitor.moveTo(from.getX() + 0.5, from.getY(), from.getZ() + 0.5, 0, 0);
+        helper.getLevel().addFreshEntity(visitor);
+        helper.runAfterDelay(2, () -> {
+            net.minecraft.world.level.pathfinder.Path path = visitor.getNavigation().createPath(helper.absolutePos(new BlockPos(34, 2, 4)), 0);
+            helper.assertTrue(path != null && path.canReach(), "no path along the strip");
+            int onPath = 0;
+            for (int i = 0; i < path.getNodeCount(); i++) {
+                if (helper.getLevel().getBlockState(path.getNodePos(i).below()).is(net.minecraft.world.level.block.Blocks.STONE_BRICKS)) {
+                    onPath++;
+                }
+            }
+            helper.assertTrue(onPath * 2 > path.getNodeCount(), "only " + onPath + " of " + path.getNodeCount() + " nodes on the path");
+            visitor.discard();
+            helper.succeed();
+        });
+    }
+
     @GameTest(template = GameTestTemplates.FLOOR)
     public static void recognitionReportNamesTheRule(GameTestHelper helper) {
         List<RecognitionReport.Entry> entries = RecognitionReport.run(helper.getLevel(), "minecraft");
