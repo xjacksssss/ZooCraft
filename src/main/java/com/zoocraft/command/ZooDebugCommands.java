@@ -39,6 +39,7 @@ final class ZooDebugCommands {
         ShopCommands.debugDesignations().forEach(debug::then);
         return debug
                 .then(ShopCommands.debugSell())
+                .then(PerfCommands.build())
                 .then(Commands.literal("create").then(Commands.argument("name", StringArgumentType.string())
                         .then(Commands.argument("from", BlockPosArgument.blockPos()).then(Commands.argument("to", BlockPosArgument.blockPos())
                                 .executes(ZooDebugCommands::create)))))

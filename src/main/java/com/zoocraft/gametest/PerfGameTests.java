@@ -4,6 +4,8 @@ import com.zoocraft.ZooCraft;
 import com.zoocraft.core.perf.PerfSlot;
 import com.zoocraft.core.perf.TimerSlots;
 import com.zoocraft.core.visitor.VisitorProfile;
+import com.zoocraft.perf.PerfLog;
+import com.zoocraft.perf.PerfReport;
 import com.zoocraft.perf.SimulationTimers;
 import com.zoocraft.registry.ZooEntities;
 import com.zoocraft.visitor.Visitor;
@@ -14,10 +16,16 @@ import com.zoocraft.zoo.ZooManager;
 import net.minecraft.core.BlockPos;
 import net.minecraft.gametest.framework.GameTest;
 import net.minecraft.gametest.framework.GameTestHelper;
+import net.minecraft.network.chat.Component;
+import net.minecraft.server.MinecraftServer;
 import net.minecraft.server.level.ServerPlayer;
 import net.neoforged.neoforge.gametest.GameTestHolder;
 import net.neoforged.neoforge.gametest.PrefixGameTestTemplate;
 
+import java.io.IOException;
+import java.nio.file.Files;
+import java.nio.file.Path;
+import java.util.List;
 import java.util.Set;
 import java.util.UUID;
 
@@ -85,6 +93,54 @@ public final class PerfGameTests {
         // Late stops for a pruned zoo are fine.
         long again = SimulationTimers.start();
         SimulationTimers.stop(PerfSlot.ANIMAL_CENSUS, gone, again);
+        helper.succeed();
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 300)
+    public static void perfReportDescribesTheZoo(GameTestHelper helper) {
+        Setup setup = openZoo(helper, "Reported");
+        Visitor visitor = exploringVisitor(helper, setup, 30, 24);
+        helper.runAfterDelay(60, () -> {
+            String server = String.join("\n", PerfReport.server(helper.getLevel().getServer()).stream().map(Component::getString).toList());
+            helper.assertTrue(server.contains("Server tick"), "no server tick line:\n" + server);
+            helper.assertTrue(server.contains("Reported"), "zoo missing from the server report:\n" + server);
+            String zoo = String.join("\n", PerfReport.zoo(helper.getLevel().getServer(), setup.zoo()).stream().map(Component::getString).toList());
+            helper.assertTrue(zoo.contains("Stuck visitors: 0"), "stuck line missing:\n" + zoo);
+            helper.assertTrue(zoo.contains("Exhibits"), "coverage line missing:\n" + zoo);
+            visitor.discard();
+            TestZoos.cleanUp(helper, setup.owner(), setup.zoo());
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR, timeoutTicks = 200)
+    public static void perfLogWritesALinePerSecondAndRestartsCleanly(GameTestHelper helper) {
+        MinecraftServer server = helper.getLevel().getServer();
+        Path first;
+        try {
+            PerfLog.start(server, 10);
+            first = PerfLog.start(server, 3); // starting again replaces the first log
+        } catch (IOException e) {
+            throw new IllegalStateException(e);
+        }
+        helper.runAfterDelay(90, () -> {
+            helper.assertFalse(PerfLog.running(), "log still running after its time");
+            List<String> lines;
+            try {
+                lines = Files.readAllLines(first);
+            } catch (IOException e) {
+                throw new IllegalStateException(e);
+            }
+            helper.assertTrue(lines.getFirst().startsWith("seconds,server_tick_ms"), "bad header: " + lines.getFirst());
+            helper.assertTrue(lines.size() >= 3 && lines.size() <= 5, "expected about 3 data lines, got " + (lines.size() - 1));
+            helper.succeed();
+        });
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR)
+    public static void stuckAndCrowdingCountsComeFromVisitors(GameTestHelper helper) {
+        helper.assertTrue(PerfReport.stuckVisitors(List.of()) == 0, "stuck in an empty list");
+        helper.assertTrue(PerfReport.mostOnOneTarget(List.of()) == 0, "crowding in an empty list");
         helper.succeed();
     }
 }
