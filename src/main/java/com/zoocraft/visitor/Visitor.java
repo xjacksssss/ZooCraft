@@ -94,6 +94,7 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
 
     // Runtime only.
     final VisitorController controller = new VisitorController(this);
+    final VisitorErrands errands = new VisitorErrands(this);
     PathRules pathRules = PathRules.ANYWHERE;
     private int commentTicks;
     private boolean departed;
@@ -252,6 +253,10 @@ public class Visitor extends PathfinderMob implements SmartBrainOwner<Visitor>, 
 
     public Needs needs() {
         return needs;
+    }
+
+    public VisitorErrands errands() {
+        return errands;
     }
 
     public int saleIndex() {

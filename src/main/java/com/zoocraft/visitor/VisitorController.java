@@ -1,6 +1,7 @@
 package com.zoocraft.visitor;
 
 import com.zoocraft.config.ZooConfig;
+import com.zoocraft.core.needs.Errand;
 import com.zoocraft.feedback.CommentType;
 import com.zoocraft.zoo.Gate;
 import com.zoocraft.zoo.Standing;
@@ -237,12 +238,25 @@ public final class VisitorController {
             setPhase(VisitorPhase.EXITING);
             return;
         }
-        if (now - visitor.visitStartTime > maxVisitTicks() || visitor.interest <= 0 || visitor.satisfaction < LOW_SATISFACTION) {
+        if (visitor.satisfaction < LOW_SATISFACTION) {
             setPhase(VisitorPhase.LEAVING);
             return;
         }
+        VisitorErrands errands = visitor.errands;
+        if (errands.tickNeeds()) {
+            // A need went unmet for too long (Phase 2 spec section 8.1).
+            setPhase(VisitorPhase.LEAVING);
+            return;
+        }
+        // Wanting to go home is a choice, so it goes through the planner, which may stop for a souvenir first.
+        boolean endingByChoice = now - visitor.visitStartTime > maxVisitTicks() || visitor.interest <= 0 || errands.wantsToGoHome();
         visitor.changeInterest(-INTEREST_DECAY_PER_STEP);
         VisitorExploration.observe(visitor, zoo, now);
+        errands.tickHeld(level, now);
+        if (endingByChoice && target != null && !errands.active()) {
+            // Don't finish the walk to another exhibit; decide how to leave now.
+            target = null;
+        }
 
         if (now < lingerUntil) {
             return;
@@ -251,19 +265,32 @@ public final class VisitorController {
             if (walkTowards(target, now)) {
                 failedRoutes = 0;
                 target = null;
-                VisitorExploration.onUnreachable(visitor, zoo);
-                visitor.changeInterest(-10);
+                if (errands.active()) {
+                    errands.onUnreachable(zoo, now);
+                } else {
+                    VisitorExploration.onUnreachable(visitor, zoo);
+                    visitor.changeInterest(-10);
+                }
             }
             return;
         }
         if (target != null) {
-            // Arrived: stay a while before choosing somewhere else.
-            lingerUntil = now + 100 + visitor.getRandom().nextInt(200);
-            VisitorExploration.onArrived(visitor, zoo, now);
             target = null;
+            if (errands.active()) {
+                lingerUntil = now + errands.onArrived(zoo, level, now);
+            } else {
+                // Arrived at an exhibit: stay a while before choosing somewhere else.
+                lingerUntil = now + 100 + visitor.getRandom().nextInt(200);
+                VisitorExploration.onArrived(visitor, zoo, now);
+            }
             return;
         }
-        VisitorExploration.chooseTarget(visitor, zoo, level).ifPresent(this::setTarget);
+        VisitorErrands.Choice choice = errands.choose(zoo, level, now, endingByChoice);
+        if (choice.errand() == Errand.LEAVE) {
+            setPhase(VisitorPhase.LEAVING);
+            return;
+        }
+        choice.target().ifPresent(this::setTarget);
     }
 
     private void stepLeaving(ServerLevel level, Zoo zoo, long now) {
