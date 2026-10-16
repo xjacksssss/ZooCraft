@@ -283,9 +283,10 @@ public final class VisitorGameTests {
 
     @GameTest(template = GameTestTemplates.FLOOR_LARGE, timeoutTicks = 400)
     public static void aVisitorAdmittedFromBeyondTheQueueWalksIn(GameTestHelper helper) {
-        // Visitors who waited beyond a full queue are admitted from about 7 blocks out; they must walk in, not leave.
+        // Visitors who waited beyond a full queue are admitted from about 7 blocks out; they must walk in, not leave, even
+        // from just beyond the gate area (9 blocks here), where a first step the wrong way would have taken them.
         Setup setup = openZoo(helper, 0);
-        Visitor visitor = visitor(helper, setup, UUID.randomUUID(), true, 9, 24, 10);
+        Visitor visitor = visitor(helper, setup, UUID.randomUUID(), true, 7, 24, 10);
         visitor.testSetPhase(VisitorPhase.EXPLORING);
         helper.succeedWhen(() -> {
             helper.assertTrue(visitor.phase() == VisitorPhase.EXPLORING, "sent away after paying: " + visitor.phase());

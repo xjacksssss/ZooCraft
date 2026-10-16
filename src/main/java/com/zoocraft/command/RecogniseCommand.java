@@ -4,6 +4,7 @@ import com.mojang.brigadier.arguments.StringArgumentType;
 import com.mojang.brigadier.builder.LiteralArgumentBuilder;
 import com.mojang.brigadier.context.CommandContext;
 import com.mojang.brigadier.suggestion.SuggestionProvider;
+import com.zoocraft.animal.RecognitionAudit;
 import com.zoocraft.animal.RecognitionReport;
 import net.minecraft.commands.CommandSourceStack;
 import net.minecraft.commands.Commands;
@@ -30,6 +31,11 @@ final class RecogniseCommand {
     static LiteralArgumentBuilder<CommandSourceStack> build() {
         return Commands.literal("recognise")
                 .executes(c -> run(c, null))
+                .then(Commands.literal("audit").executes(c -> {
+                    Component reply = RecognitionAudit.start(c.getSource().getServer(), c.getSource());
+                    c.getSource().sendSuccess(() -> reply, false);
+                    return 1;
+                }))
                 .then(Commands.argument("namespace", StringArgumentType.word()).suggests(NAMESPACES)
                         .executes(c -> run(c, StringArgumentType.getString(c, "namespace"))));
     }

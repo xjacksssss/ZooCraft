@@ -50,6 +50,14 @@ class RecognitionRulesTest {
     }
 
     @Test
+    void villagersAndTradersAreNeverAnimalsUnlessTaggedIn() {
+        RecognitionFacts trader = new RecognitionFacts(false, false, false, true, false, "creature", true);
+        assertEquals(new RecognitionVerdict(false, RecognitionVerdict.Reason.VILLAGER_OR_TRADER), RecognitionRules.decide(trader));
+        RecognitionFacts taggedIn = new RecognitionFacts(true, false, false, false, false, "creature", true);
+        assertTrue(RecognitionRules.isExhibitAnimal(taggedIn));
+    }
+
+    @Test
     void includeTagAddsAnything() {
         assertTrue(RecognitionRules.isExhibitAnimal(facts(true, false, false, false, false, "misc")));
     }

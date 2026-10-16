@@ -6,6 +6,9 @@ public final class LimitRule {
     public static final double BUDGET_MS = 10.0;
     public static final int MAX_TOTAL = 2000;
     public static final int MAX_PER_ZOO = 500;
+    /** The config defaults: this rule applied to the final Phase 3 measurements (LimitRuleTest checks them). */
+    public static final int SHIPPED_TOTAL = 140;
+    public static final int SHIPPED_PER_ZOO = 68;
 
     private LimitRule() {
     }

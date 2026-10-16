@@ -396,4 +396,43 @@ public final class AnimalGameTests {
             helper.succeed();
         });
     }
+
+    /** A mob added the way natural spawning adds it: not persistent (the helper's spawn methods make mobs persistent). */
+    private static <T extends Mob> T spawnLoose(GameTestHelper helper, EntityType<T> type, BlockPos relative) {
+        T mob = type.create(helper.getLevel());
+        Vec3 pos = Vec3.atBottomCenterOf(helper.absolutePos(relative));
+        mob.moveTo(pos.x, pos.y, pos.z, 0, 0);
+        mob.setNoAi(true);
+        helper.getLevel().addFreshEntity(mob);
+        return mob;
+    }
+
+    @GameTest(template = GameTestTemplates.FLOOR_LARGE)
+    public static void zooAnimalsNeverDespawn(GameTestHelper helper) {
+        ServerPlayer owner = TestZoos.player(helper, "Owner");
+        Zoo zoo = TestZoos.create(helper, owner, "Keep", TestZoos.rectangle(helper, 2, 2, 30, 30));
+        Mob inside = spawnLoose(helper, EntityType.COD, at(8, 8));
+        Mob outside = spawnLoose(helper, EntityType.COD, at(40, 40));
+        Mob zombie = spawnLoose(helper, EntityType.ZOMBIE, at(12, 8));
+        helper.assertFalse(inside.isPersistenceRequired(), "test cod started persistent");
+
+        helper.assertTrue(net.neoforged.neoforge.event.EventHooks.checkMobDespawn(inside), "despawn not denied inside the zoo");
+        helper.assertTrue(inside.isPersistenceRequired() && inside.isAlive(), "zoo cod not kept");
+        helper.assertFalse(net.neoforged.neoforge.event.EventHooks.checkMobDespawn(outside), "despawn denied outside any zoo");
+        helper.assertFalse(net.neoforged.neoforge.event.EventHooks.checkMobDespawn(zombie), "a zombie in a zoo was kept");
+        helper.assertFalse(outside.isPersistenceRequired() || zombie.isPersistenceRequired(), "non-zoo mobs marked persistent");
+
+        Mob counted = spawnLoose(helper, EntityType.SALMON, at(16, 8));
+        AnimalCensus.refresh(zoo, helper.getLevel());
+        helper.assertTrue(counted.isPersistenceRequired(), "the census didn't mark a counted animal persistent");
+
+        float health = inside.getHealth();
+        inside.hurt(helper.getLevel().damageSources().cramming(), 6.0F);
+        helper.assertTrue(inside.getHealth() == health, "cramming hurt a zoo animal");
+        float outsideHealth = outside.getHealth();
+        outside.hurt(helper.getLevel().damageSources().cramming(), 1.0F);
+        helper.assertTrue(outside.getHealth() < outsideHealth, "cramming was cancelled outside the zoo");
+        TestZoos.cleanUp(helper, owner, zoo);
+        helper.succeed();
+    }
 }

@@ -121,6 +121,7 @@ public final class AnimalCensus {
         Map<UUID, Mob> byId = new HashMap<>();
         List<AnimalPoint> points = new ArrayList<>();
         for (Mob mob : animals) {
+            ZooAnimalProtection.keep(mob);
             String species = AnimalRecognition.species(mob.getType()).toString();
             speciesOf.put(mob.getUUID(), species);
             names.putIfAbsent(species, AnimalRecognition.speciesName(mob.getType()));

@@ -24,6 +24,17 @@ class LimitRuleTest {
     }
 
     @Test
+    void theFinalPhaseThreeNumbersGiveTheShippedDefaults() {
+        // docs/performance.md, final M10b+M11 build in Big Park: 7.3 ms empty, 10.8 ms at 100, 12.5 ms at 200.
+        double cost = LimitRule.costPerVisitor(7.3, 10.8, 12.5);
+        assertEquals(0.035, cost, 1e-9);
+        assertEquals(140, LimitRule.serverDefault(cost));
+        assertEquals(68, LimitRule.perZooDefault(140));
+        assertEquals(LimitRule.SHIPPED_TOTAL, LimitRule.serverDefault(cost));
+        assertEquals(LimitRule.SHIPPED_PER_ZOO, LimitRule.perZooDefault(LimitRule.SHIPPED_TOTAL));
+    }
+
+    @Test
     void perZooDefaultIsAtLeastTwelve() {
         assertEquals(12, LimitRule.perZooDefault(10));
     }

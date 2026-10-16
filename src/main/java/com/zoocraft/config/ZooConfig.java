@@ -1,6 +1,7 @@
 package com.zoocraft.config;
 
 import com.zoocraft.core.geometry.BoundaryLimits;
+import com.zoocraft.core.perf.LimitRule;
 import net.neoforged.neoforge.common.ModConfigSpec;
 
 /** Server-side settings (spec section 10). Values are read live, so changes apply without a restart. */
@@ -53,10 +54,12 @@ public final class ZooConfig {
         ModConfigSpec.Builder b = new ModConfigSpec.Builder();
 
         b.push("visitors");
-        MAX_VISITORS_PER_ZOO = b.comment("Most visitors one zoo can have at a time.")
-                .defineInRange("maxVisitorsPerZoo", 12, 0, 200);
-        MAX_VISITORS_TOTAL = b.comment("Most visitors across all zoos on the server. Lower this on weaker servers.")
-                .defineInRange("maxVisitorsTotal", 40, 0, 1000);
+        MAX_VISITORS_PER_ZOO = b.comment("Most visitors one zoo can have at a time.",
+                        "Values above the default are at your own risk: see docs/performance.md.")
+                .defineInRange("maxVisitorsPerZoo", LimitRule.SHIPPED_PER_ZOO, 0, LimitRule.MAX_PER_ZOO);
+        MAX_VISITORS_TOTAL = b.comment("Most visitors across all zoos on the server. Lower this first on weaker servers.",
+                        "The default is half of what the reference machine handled; above it is at your own risk (docs/performance.md).")
+                .defineInRange("maxVisitorsTotal", LimitRule.SHIPPED_TOTAL, 0, LimitRule.MAX_TOTAL);
         SPAWN_INTERVAL_SECONDS = b.comment("How often each open zoo considers spawning a visitor group.")
                 .defineInRange("spawnIntervalSeconds", 10, 1, 600);
         MAX_VISIT_MINUTES = b.comment("Longest a single visit can last, in real minutes.")

@@ -38,6 +38,8 @@ public final class VisitorController {
     static final int MISSES_BEFORE_GIVING_UP = 2;
     /** How long a visitor may spend trying to leave before it is released where it stands. */
     static final long LEAVE_SAFETY_TICKS = 60 * 20;
+    /** How long a just-admitted visitor has to get from the queue into the zoo before counting as pushed out. */
+    static final long WALK_IN_TICKS = 30 * 20;
     static final long QUEUE_WAIT_TICKS = 20 * 20;
     static final long EXIT_WALK_TICKS = 20 * 20;
     static final double LOW_SATISFACTION = 15;
@@ -79,6 +81,8 @@ public final class VisitorController {
     private @Nullable UUID exitGateId;
     private final Set<UUID> triedExitGates = new HashSet<>();
     private boolean saidClosed;
+    // Whether this visitor has stood inside the boundary since admission: only then can it be pushed out.
+    private boolean beenInside;
     // Gate queue (Phase 3 spec section 7.3).
     private @Nullable BlockPos queueSlot;
     private long overflowSince;
@@ -279,8 +283,11 @@ public final class VisitorController {
             setPhase(VisitorPhase.LEAVING);
             return;
         }
-        if (!zoo.contains(visitor.blockPosition()) && !nearAnyGate(zoo, PathRules.GATE_AREA)) {
-            // Pushed out, or the boundary moved: the visit is over and they head off from here.
+        if (zoo.contains(visitor.blockPosition())) {
+            beenInside = true;
+        } else if (!nearAnyGate(zoo, PathRules.GATE_AREA) && (beenInside || now - phaseStartTime > WALK_IN_TICKS)) {
+            // Pushed out, or the boundary moved: the visit is over and they head off from here. A visitor admitted from
+            // the back of the queue may step the wrong way before it first gets in; that isn't being pushed out.
             setPhase(VisitorPhase.EXITING);
             return;
         }

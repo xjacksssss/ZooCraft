@@ -25,6 +25,9 @@ public final class RecognitionRules {
         if (facts.includeTagged()) {
             return new RecognitionVerdict(true, RecognitionVerdict.Reason.INCLUDED_BY_TAG);
         }
+        if (facts.villagerOrTrader()) {
+            return new RecognitionVerdict(false, RecognitionVerdict.Reason.VILLAGER_OR_TRADER);
+        }
         if ("monster".equals(facts.spawnCategory())) {
             return new RecognitionVerdict(false, RecognitionVerdict.Reason.MONSTER_CATEGORY);
         }

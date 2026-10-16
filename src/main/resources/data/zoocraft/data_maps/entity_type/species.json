@@ -1,0 +1,408 @@
+{
+  "values": {
+    "shiny:shiny_allay": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:allay",
+      "name": "entity.minecraft.allay"
+    },
+    "shiny:shiny_armadillo": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:armadillo",
+      "name": "entity.minecraft.armadillo"
+    },
+    "shiny:shiny_axolotl": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:axolotl",
+      "name": "entity.minecraft.axolotl"
+    },
+    "shiny:shiny_bee": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:bee",
+      "name": "entity.minecraft.bee"
+    },
+    "shiny:shiny_camel": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:camel",
+      "name": "entity.minecraft.camel"
+    },
+    "shiny:shiny_cat": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:cat",
+      "name": "entity.minecraft.cat"
+    },
+    "shiny:shiny_chicken": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:chicken",
+      "name": "entity.minecraft.chicken"
+    },
+    "shiny:shiny_cod": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:cod",
+      "name": "entity.minecraft.cod"
+    },
+    "shiny:shiny_cow": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:cow",
+      "name": "entity.minecraft.cow"
+    },
+    "shiny:shiny_dolphin": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:dolphin",
+      "name": "entity.minecraft.dolphin"
+    },
+    "shiny:shiny_donkey": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:donkey",
+      "name": "entity.minecraft.donkey"
+    },
+    "shiny:shiny_fox": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:fox",
+      "name": "entity.minecraft.fox"
+    },
+    "shiny:shiny_frog": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:frog",
+      "name": "entity.minecraft.frog"
+    },
+    "shiny:shiny_glow_squid": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:glow_squid",
+      "name": "entity.minecraft.glow_squid"
+    },
+    "shiny:shiny_goat": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:goat",
+      "name": "entity.minecraft.goat"
+    },
+    "shiny:shiny_horse": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:horse",
+      "name": "entity.minecraft.horse"
+    },
+    "shiny:shiny_llama": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:llama",
+      "name": "entity.minecraft.llama"
+    },
+    "shiny:shiny_mooshroom": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:mooshroom",
+      "name": "entity.minecraft.mooshroom"
+    },
+    "shiny:shiny_mule": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:mule",
+      "name": "entity.minecraft.mule"
+    },
+    "shiny:shiny_ocelot": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:ocelot",
+      "name": "entity.minecraft.ocelot"
+    },
+    "shiny:shiny_panda": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:panda",
+      "name": "entity.minecraft.panda"
+    },
+    "shiny:shiny_parrot": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:parrot",
+      "name": "entity.minecraft.parrot"
+    },
+    "shiny:shiny_pig": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:pig",
+      "name": "entity.minecraft.pig"
+    },
+    "shiny:shiny_polar_bear": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:polar_bear",
+      "name": "entity.minecraft.polar_bear"
+    },
+    "shiny:shiny_pufferfish": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:pufferfish",
+      "name": "entity.minecraft.pufferfish"
+    },
+    "shiny:shiny_rabbit": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:rabbit",
+      "name": "entity.minecraft.rabbit"
+    },
+    "shiny:shiny_salmon": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:salmon",
+      "name": "entity.minecraft.salmon"
+    },
+    "shiny:shiny_sheep": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:sheep",
+      "name": "entity.minecraft.sheep"
+    },
+    "shiny:shiny_skeleton_horse": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:skeleton_horse",
+      "name": "entity.minecraft.skeleton_horse"
+    },
+    "shiny:shiny_sniffer": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:sniffer",
+      "name": "entity.minecraft.sniffer"
+    },
+    "shiny:shiny_squid": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:squid",
+      "name": "entity.minecraft.squid"
+    },
+    "shiny:shiny_strider": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:strider",
+      "name": "entity.minecraft.strider"
+    },
+    "shiny:shiny_tadpole": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:tadpole",
+      "name": "entity.minecraft.tadpole"
+    },
+    "shiny:shiny_trader_llama": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:trader_llama",
+      "name": "entity.minecraft.trader_llama"
+    },
+    "shiny:shiny_tropical_fish": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:tropical_fish",
+      "name": "entity.minecraft.tropical_fish"
+    },
+    "shiny:shiny_turtle": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:turtle",
+      "name": "entity.minecraft.turtle"
+    },
+    "shiny:shiny_wolf": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:wolf",
+      "name": "entity.minecraft.wolf"
+    },
+    "shiny:shiny_zombie_horse": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "shiny"
+        }
+      ],
+      "species": "minecraft:zombie_horse",
+      "name": "entity.minecraft.zombie_horse"
+    },
+    "dyenamics:sheep": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "dyenamics"
+        }
+      ],
+      "species": "minecraft:sheep",
+      "name": "entity.minecraft.sheep"
+    },
+    "sushigocrafting:tuna": {
+      "neoforge:conditions": [
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "aquaculture"
+        },
+        {
+          "type": "neoforge:mod_loaded",
+          "modid": "sushigocrafting"
+        }
+      ],
+      "species": "aquaculture:tuna",
+      "name": "entity.aquaculture.tuna"
+    }
+  }
+}

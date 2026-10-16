@@ -6,6 +6,7 @@ public record RecognitionVerdict(boolean recognised, Reason reason) {
         EXCLUDED_BY_TAG("tag zoocraft:not_exhibit_animals"),
         BOSS("boss tag"),
         INCLUDED_BY_TAG("tag zoocraft:exhibit_animals"),
+        VILLAGER_OR_TRADER("villager or trader"),
         MONSTER_CATEGORY("monster category"),
         ANIMAL_CLASS("extends Animal"),
         WATER_ANIMAL_CLASS("extends WaterAnimal"),

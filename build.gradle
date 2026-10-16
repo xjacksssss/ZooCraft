@@ -49,9 +49,9 @@ neoForge {
         client {
             client()
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
-            // -PjoinServer joins a local runServer straight away (used by tools/visual-check.py).
+            // -PjoinServer joins a local runServer straight away; -PjoinServer=<host:port> joins another server.
             if (project.hasProperty('joinServer')) {
-                programArguments.addAll '--quickPlayMultiplayer', 'localhost:25565'
+                programArguments.addAll '--quickPlayMultiplayer', project.property('joinServer').toString() ?: 'localhost:25565'
             }
         }
 
@@ -60,7 +60,7 @@ neoForge {
             gameDirectory = project.file('run-client2')
             programArguments.addAll '--username', 'Manager'
             if (project.hasProperty('joinServer')) {
-                programArguments.addAll '--quickPlayMultiplayer', 'localhost:25565'
+                programArguments.addAll '--quickPlayMultiplayer', project.property('joinServer').toString() ?: 'localhost:25565'
             }
             systemProperty 'neoforge.enabledGameTestNamespaces', project.mod_id
         }
@@ -86,6 +86,11 @@ neoForge {
             // -PquickPlay=<world> opens that save from run-atm10/saves straight away.
             if (project.hasProperty('quickPlay')) {
                 programArguments.addAll '--quickPlaySingleplayer', project.property('quickPlay').toString()
+            }
+            // -PrecognitionAudit runs /zoo debug recognise audit as soon as the world loads, then closes the game
+            // (tools/atm10/recognition-audit.sh).
+            if (project.hasProperty('recognitionAudit')) {
+                jvmArguments.addAll '-Dzoocraft.recognitionAudit=true'
             }
         }
 

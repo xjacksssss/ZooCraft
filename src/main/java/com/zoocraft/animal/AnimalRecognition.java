@@ -14,6 +14,8 @@ import net.minecraft.world.entity.EntityType;
 import net.minecraft.world.entity.Mob;
 import net.minecraft.world.entity.animal.Animal;
 import net.minecraft.world.entity.animal.WaterAnimal;
+import net.minecraft.world.entity.npc.Npc;
+import net.minecraft.world.item.trading.Merchant;
 import net.neoforged.bus.api.IEventBus;
 import net.neoforged.neoforge.common.Tags;
 import net.neoforged.neoforge.registries.datamaps.DataMapType;
@@ -54,7 +56,8 @@ public final class AnimalRecognition {
                 type.is(Tags.EntityTypes.BOSSES),
                 entity instanceof Animal,
                 entity instanceof WaterAnimal,
-                type.getCategory().getName());
+                type.getCategory().getName(),
+                entity instanceof Npc || entity instanceof Merchant);
     }
 
     /** What can be known without constructing the entity: tags and spawn category only. */
