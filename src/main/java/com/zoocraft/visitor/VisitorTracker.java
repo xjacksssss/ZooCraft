@@ -3,12 +3,14 @@ package com.zoocraft.visitor;
 import com.zoocraft.ZooCraft;
 import com.zoocraft.zoo.Zoo;
 import com.zoocraft.zoo.ZooManager;
+import net.minecraft.server.level.ServerLevel;
 import net.neoforged.bus.api.SubscribeEvent;
 import net.neoforged.fml.common.EventBusSubscriber;
 import net.neoforged.neoforge.event.entity.EntityJoinLevelEvent;
 import net.neoforged.neoforge.event.entity.EntityLeaveLevelEvent;
 import net.neoforged.neoforge.event.server.ServerAboutToStartEvent;
 import net.neoforged.neoforge.event.server.ServerStoppedEvent;
+import net.neoforged.neoforge.event.tick.ServerTickEvent;
 
 import java.util.Collections;
 import java.util.HashMap;
@@ -20,11 +22,13 @@ import java.util.UUID;
 
 /**
  * Loaded visitors per zoo, kept up to date from entity join and leave events, so limits and group lookups never
- * scan the world. Also releases visitors when their zoo is deleted or its boundary changes.
+ * scan the world. Also releases visitors when their zoo is deleted or its boundary changes, and visitors outside the
+ * zoo that are frozen in a chunk that no longer ticks (see {@link #onServerTick}).
  */
 @EventBusSubscriber(modid = ZooCraft.MOD_ID)
 public final class VisitorTracker {
     private static final Map<UUID, Set<Visitor>> BY_ZOO = new HashMap<>();
+    static final int FROZEN_SWEEP_TICKS = 100;
     private static boolean listenersAdded;
 
     private VisitorTracker() {
@@ -70,6 +74,31 @@ public final class VisitorTracker {
                 }
             }
         }
+    }
+
+    /**
+     * Visitors still arriving or queueing (not yet paid) or already on their way out stop moving when their chunk stops
+     * ticking, for example when the only player nearby walks off, and would hold places under the visitor limits until
+     * someone came back. They are released instead; nothing is lost, as arrivals haven't paid and leavers are done.
+     * Admitted visitors inside the zoo are kept: they carry on when their chunk ticks again.
+     */
+    @SubscribeEvent
+    static void onServerTick(ServerTickEvent.Post event) {
+        if (event.getServer().getTickCount() % FROZEN_SWEEP_TICKS != 0 || BY_ZOO.isEmpty()) {
+            return;
+        }
+        for (Set<Visitor> set : List.copyOf(BY_ZOO.values())) {
+            for (Visitor visitor : List.copyOf(set)) {
+                if (visitor.level() instanceof ServerLevel level
+                        && frozenOutside(visitor.phase(), level.isPositionEntityTicking(visitor.blockPosition()))) {
+                    visitor.releaseNow(null);
+                }
+            }
+        }
+    }
+
+    static boolean frozenOutside(VisitorPhase phase, boolean ticking) {
+        return !ticking && phase != VisitorPhase.EXPLORING && phase != VisitorPhase.LEAVING;
     }
 
     @SubscribeEvent

@@ -20,6 +20,10 @@ The four-zoo layout: close Big Park (`execute as Dev run zoo close "Big Park"`),
 `368 121 688 288`, then build `"North West" 400 0 6`, `"North East" 560 0 6`, `"South West" 400 160 6` and
 `"South East" 560 160 6`.
 
+The terraced park: close the other zoos, force-load `768 -32 991 191` (the park plus two chunks round it, like the other layouts), then `python build_complex_park.py "Hill Park" 800 0`.
+It is 160 by 160 blocks with terraces at +3, +4 and +6, a sunken pond with fish under a railed boardwalk, one winding
+loop path with ramps and three gates, and 27 pens of 7 to 15 blocks spaced along the path on every level.
+
 ## Measuring
 
 ```bash

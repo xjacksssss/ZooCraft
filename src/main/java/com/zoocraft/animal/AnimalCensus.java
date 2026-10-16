@@ -57,6 +57,8 @@ public final class AnimalCensus {
     public static final double LINK_DISTANCE = 8.0;
     private static final int MAX_ANIMALS = 512;
     private static final int SPOT_SAMPLES = 16;
+    /** How far above or below an enclosure's floor a viewing spot may be (found in the terraced park's pond). */
+    static final int SPOT_HEIGHT_RANGE = 4;
 
     private static final Map<UUID, ZooCensus> CENSUS = new HashMap<>();
     private static final Map<UUID, List<Exhibit>> EXHIBITS = new HashMap<>();
@@ -286,7 +288,11 @@ public final class AnimalCensus {
         exhibit.rate(level.getGameTime());
     }
 
-    /** Where visitors can stand: inside the zoo, out of fluids; path blocks underfoot count as paths. */
+    /**
+     * Where visitors can stand: inside the zoo, out of fluids; path blocks underfoot count as paths. The nearest height
+     * is taken, up to {@link #SPOT_HEIGHT_RANGE} from the enclosure floor, so a pond's bank (its floor is the water's
+     * bottom) and a raised viewing gallery count as well as ground beside a pen.
+     */
     private static SpotGrid spotGrid(ServerLevel level, Zoo zoo) {
         return new SpotGrid() {
             @Override
@@ -295,7 +301,7 @@ public final class AnimalCensus {
                 if (!zoo.shape().containsBlock(x, z) || !level.isLoaded(near)) {
                     return FloorGrid.NO_FLOOR;
                 }
-                return Standing.findStandable(level, near, 2).filter(p -> level.getFluidState(p).isEmpty())
+                return Standing.findStandable(level, near, SPOT_HEIGHT_RANGE).filter(p -> level.getFluidState(p).isEmpty())
                         .map(BlockPos::getY).orElse(FloorGrid.NO_FLOOR);
             }
 

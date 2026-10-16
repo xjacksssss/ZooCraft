@@ -131,6 +131,65 @@ What the measurements found and what fixed it:
 
 Not measured: the four-zoo layout at 200 visitors (left for M12's sign-off runs), and a 200-visitor coverage run.
 
+## M12: defaults and the terraced park (2026-10-16)
+
+### Defaults
+
+`LimitRule` on the final M11 numbers above (7.3 ms empty, 10.8 ms at 100 visitors, 12.5 ms at 200) takes the worse
+cost, 0.035 ms per visitor at 100, so 280 visitors fit the 10 ms budget; halved, the defaults are **140 per server**
+(`maxVisitorsTotal`) and **68 per zoo** (`maxVisitorsPerZoo`). The ceilings are 2,000 and 500.
+
+### Hill Park
+
+Big Park is flat with a straight grid of paths. Hill Park (`tools/perf/build_complex_park.py`, see the harness
+README) tests the opposite: 160 by 160 blocks, terraces at +3, +4 and +6 with cliff edges, one winding loop path with
+ramps (a block up every two), a railed boardwalk over a sunken pond, 27 pens of 7 to 15 blocks spread along the path on
+every level, 73 animals of 16 species, 3 gates. Measured with Big Park and the four-zoo layout closed but loaded, so
+the empty baseline is higher than Big Park's own.
+
+Tick cost (`ramp.py`, before the fixes below):
+
+| Visitors | Average tick | Worst P99 | ZooCraft |
+|---|---|---|---|
+| 0 | 11.6 ms | 34.3 ms | 0.09 ms |
+| 50 | 12.5 ms | 37.0 ms | 1.22 ms |
+| 100 | 14.2 ms | 37.4 ms | 2.34 ms |
+
+100 visitors add 2.6 ms (0.026 ms each), the same as in Big Park, with P99 under 40 ms.
+
+What the play-test found, and the fixes, with `/zoo debug perf "Hill Park"` at 100 visitors and 20-minute sprinted
+coverage runs:
+
+| Build | Plans falling short (of a nearby target) | Each plan | Route searches | ZooCraft | Viewed | Busiest / median | Longest stuck |
+|---|---|---|---|---|---|---|---|
+| Phase 3 as at M11 | 58% (48%) | 1.56 ms | | 2.68 ms | 91% | 4.2 | 44 s |
+| Final | 15-19% (7-11%) | 0.8 ms | 0.9-1.0 ms per tick | 2.4 ms | 83-94% | 2.5-3.6 | 46 s |
+
+1. **Long walks ended at cliff edges.** A waypoint 24 blocks along the straight line from a terrace top lies below the
+   cliff, reachable only via the ramp, and each partial path stopped at the edge. Waypoints now follow the paths
+   (`PathRoute`): a breadth-first search over connected path blocks, a block up or down per step, finds the path block
+   nearest the target and the waypoint is 24 steps along that route; visitors off the paths first walk to the nearest
+   one. Searches stop at 2,048 cells; they cost about 3 ms each, about one per visitor every 10 seconds, and save more
+   path planning than they cost.
+2. **A pond had no viewing spots.** Spots were looked for within 2 blocks of the enclosure floor, which in a pond is the
+   bottom, 3 blocks below the bank. They now may be up to 4 above or below.
+3. **Animals below a visitor couldn't be seen** more than 3 blocks down, so galleries, bridges and terrace overlooks
+   didn't count. Animals up to 8 blocks below now can, through glass or open air; a solid floor still blocks the view.
+4. **Leaving visitors froze outside a gate** whose chunks stopped ticking (here because the harness force-loaded only
+   the park), still counting against the visitor limits. Arriving and leaving visitors in a chunk that isn't ticking are
+   now released every 5 seconds.
+5. **Followers picked a block inside a pen** next to their leader when that pen's enclosure wasn't known yet, and
+   retried for 80 seconds, because a path ending within 2 blocks never counts as a miss. Exploring visitors stalled
+   within 3 blocks of their target for 5 seconds now count as there.
+6. **A visitor admitted from the back of a queue** could take a first step the wrong way and be sent home after paying
+   (an intermittent GameTest failure). The pushed-out check now waits until the visitor has been inside, or 30 seconds.
+
+Remaining gaps in Hill Park, which are layout rather than simulation: coverage varies between runs from 83% to 94%
+(the spec's 95% is for Big Park). The exhibits left out are second pens of a species visitors have already seen, in far
+corners (variety-seeking is by design), frogs that hopped out of their pens into corners, and the axolotls on the bottom
+of the middle of the 26-block-wide pond, more than 6 blocks from any bank and under the boardwalk's opaque planks: that
+exhibit carries the "visitors can't get close enough" warning, and a glass-floored gallery would fix it.
+
 ## Reading `/zoo debug perf`
 
 - **Server tick**: the whole tick, average and worst over the last 30 seconds. Vanilla's budget is 50 ms.

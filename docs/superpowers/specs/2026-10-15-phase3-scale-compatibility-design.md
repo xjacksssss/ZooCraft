@@ -1,7 +1,7 @@
 # ZooCraft Phase 3 Scale and Compatibility: Design Specification
 
 **Date:** 2026-10-15
-**Status:** Draft for review
+**Status:** Built (M9 to M12, 2026-10-16)
 **Source of truth:** [zoocraft_game_design_document_v1.0.md](../../../zoocraft_game_design_document_v1.0.md) (the GDD). This spec implements GDD section 11, Phase 3 ("Scale and compatibility"), and builds on the Phase 1 spec, [2026-10-14-phase1-prototype-design.md](2026-10-14-phase1-prototype-design.md), and the Phase 2 spec, [2026-10-14-phase2-management-loop-design.md](2026-10-14-phase2-management-loop-design.md). "P1 8.3" means Phase 1 spec section 8.3; "P2 8.4" means Phase 2 spec section 8.4.
 
 ## 1. Purpose and success criteria
@@ -363,7 +363,7 @@ Repeat the Phase 1 M4 check with the M12 jar: install a NeoForge 21.1.251 dedica
 
 | Key | Side | Default |
 |---|---|---|
-| `maxVisitorsPerZoo` / `maxVisitorsTotal` | server | Set by section 9.2 (currently 12 / 40); ceilings 500 / 2,000 |
+| `maxVisitorsPerZoo` / `maxVisitorsTotal` | server | 68 / 140, set by section 9.2 from the final M11 numbers (0.035 ms per visitor); ceilings 500 / 2,000 |
 | `simulation.visitorStepTicks` | server | 10 (current constant) |
 | `simulation.viewingIntervalTicks` | server | 20 (current behaviour) |
 | `simulation.litterCheckIntervalTicks` | server | 40 (current behaviour) |

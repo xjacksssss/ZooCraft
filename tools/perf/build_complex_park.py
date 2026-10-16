@@ -2,7 +2,7 @@
 
 Usage: python tools/perf/build_complex_park.py ["<name>"] [x0] [z0]      (defaults: "Hill Park" 800 0)
 Like build_park.py it needs the superflat perf world (feet at y=-60), Dev online and opped, and the area force-loaded
-(`forceload add 800 0 959 159`).
+(`forceload add 768 -32 991 191`: the park plus a two-chunk margin, so visitors outside the gates keep ticking).
 
 The layout (relative coordinates, x east and z south, 0 to 159):
 - three raised terraces (+3, +6 on top of it, and +4) and a sunken pond with fish, fenced at ground level;

@@ -1,12 +1,14 @@
 """Minimal RCON client for scripting the dev server (run-server/server.properties enables it).
 
 Usage: python tools/rcon.py "command one" "command two" ...
+Set RCON_PORT to talk to another server (the standalone check uses 25576).
 """
+import os
 import socket
 import struct
 import sys
 
-HOST, PORT, PASSWORD = "127.0.0.1", 25575, "zoocraft-dev"
+HOST, PORT, PASSWORD = "127.0.0.1", int(os.environ.get("RCON_PORT", "25575")), "zoocraft-dev"
 
 
 def packet(request_id, kind, body):

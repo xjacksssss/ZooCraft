@@ -121,14 +121,16 @@ public final class PerfReport {
         Path file = server.getServerDirectory().resolve("logs").resolve("zoocraft-exhibits.csv");
         Files.createDirectories(file.getParent());
         long now = server.overworld().getGameTime();
-        StringBuilder out = new StringBuilder("zoo,exhibit,species,x,z,views_total,views_today,rating,spots,bounded,area\n");
+        StringBuilder out = new StringBuilder(
+                "zoo,exhibit,species,x,z,views_total,views_today,rating,spots,bounded,area,attempts_today,unreachable,last_reached_s_ago\n");
         for (Exhibit e : AnimalCensus.cached(zoo).exhibits()) {
             out.append('"').append(zoo.name().replace("\"", "")).append("\",").append(e.id()).append(',')
                     .append(String.join(" ", e.species().stream().sorted().toList())).append(',')
                     .append((int) Math.floor(e.centre().x)).append(',').append((int) Math.floor(e.centre().z)).append(',')
                     .append(e.viewCount()).append(',').append(e.viewsToday(now)).append(',').append(e.rating().score()).append(',')
                     .append(e.viewingSpots().size()).append(',').append(e.enclosure().bounded()).append(',').append(e.enclosure().area())
-                    .append('\n');
+                    .append(',').append(e.attemptsToday(now)).append(',').append(e.isUnreachable(now)).append(',')
+                    .append(e.lastReached() >= 0 ? String.valueOf((now - e.lastReached()) / 20) : "never").append('\n');
         }
         Files.writeString(file, out);
         return file;

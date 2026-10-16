@@ -397,6 +397,34 @@ public final class AnimalGameTests {
         });
     }
 
+    @GameTest(template = GameTestTemplates.FLOOR)
+    public static void visitorsSeeDownFromGalleriesButNotThroughFloors(GameTestHelper helper) {
+        // A gallery: viewers stand 6 blocks above the floor (relative y=8) on a glass deck over one pig and a stone deck
+        // over another; a third pig stands on a ledge 6 blocks above a viewer on the floor.
+        Mob belowGlass = helper.spawnWithNoFreeWill(EntityType.PIG, at(5, 5));
+        Mob belowStone = helper.spawnWithNoFreeWill(EntityType.PIG, at(5, 20));
+        for (int x = 3; x <= 7; x++) {
+            for (int z = 3; z <= 7; z++) {
+                helper.setBlock(new BlockPos(x, 7, z), Blocks.GLASS);
+            }
+            for (int z = 18; z <= 22; z++) {
+                helper.setBlock(new BlockPos(x, 7, z), Blocks.STONE);
+            }
+        }
+        helper.setBlock(new BlockPos(20, 7, 10), Blocks.STONE);
+        Mob onLedge = helper.spawnWithNoFreeWill(EntityType.PIG, new BlockPos(20, 8, 10));
+        Vec3 aboveGlass = Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(6, 8, 6)));
+        Vec3 aboveStone = Vec3.atBottomCenterOf(helper.absolutePos(new BlockPos(6, 8, 21)));
+        Vec3 underLedge = Vec3.atBottomCenterOf(helper.absolutePos(at(21, 10)));
+        helper.assertTrue(Viewing.canSee(helper.getLevel(), aboveGlass.add(0, 1.62, 0), aboveGlass, belowGlass, 6),
+                "not seen from a glass gallery 6 blocks up");
+        helper.assertFalse(Viewing.canSee(helper.getLevel(), aboveStone.add(0, 1.62, 0), aboveStone, belowStone, 6),
+                "seen through a stone floor");
+        helper.assertFalse(Viewing.canSee(helper.getLevel(), underLedge.add(0, 1.62, 0), underLedge, onLedge, 6),
+                "seen 6 blocks up");
+        helper.succeed();
+    }
+
     /** A mob added the way natural spawning adds it: not persistent (the helper's spawn methods make mobs persistent). */
     private static <T extends Mob> T spawnLoose(GameTestHelper helper, EntityType<T> type, BlockPos relative) {
         T mob = type.create(helper.getLevel());

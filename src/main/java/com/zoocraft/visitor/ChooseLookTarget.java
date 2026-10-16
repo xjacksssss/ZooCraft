@@ -104,7 +104,7 @@ public class ChooseLookTarget extends ExtendedBehaviour<Visitor> {
 
     private static boolean close(Entity visitor, Entity animal, int radius) {
         double dx = animal.getX() - visitor.getX(), dz = animal.getZ() - visitor.getZ();
-        return dx * dx + dz * dz <= (double) radius * radius && Math.abs(animal.getY() - visitor.getY()) <= Viewing.MAX_VERTICAL;
+        return dx * dx + dz * dz <= (double) radius * radius && Viewing.withinHeight(animal.getY() - visitor.getY());
     }
 
     private static PositionTracker ahead(Visitor visitor, Path path) {

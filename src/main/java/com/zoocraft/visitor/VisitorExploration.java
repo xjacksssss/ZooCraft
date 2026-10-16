@@ -199,7 +199,7 @@ final class VisitorExploration {
         Vec3 feet = visitor.position();
         List<Mob> near = new ArrayList<>();
         for (Mob animal : census.animals()) {
-            if (animal.isAlive() && animal.distanceToSqr(feet) <= reachSq + Viewing.MAX_VERTICAL * Viewing.MAX_VERTICAL) {
+            if (animal.isAlive() && animal.distanceToSqr(feet) <= reachSq + Viewing.MAX_BELOW * Viewing.MAX_BELOW) {
                 near.add(animal);
             }
         }

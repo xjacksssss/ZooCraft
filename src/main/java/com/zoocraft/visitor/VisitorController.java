@@ -3,11 +3,14 @@ package com.zoocraft.visitor;
 import com.zoocraft.config.ZooConfig;
 import com.zoocraft.core.crowd.GateChoice;
 import com.zoocraft.core.needs.Errand;
+import com.zoocraft.core.visitor.PathRoute;
 import com.zoocraft.core.visitor.Progress;
 import com.zoocraft.core.visitor.StepRates;
 import com.zoocraft.feedback.CommentType;
 import com.zoocraft.zoo.Gate;
 import com.zoocraft.zoo.Standing;
+import com.zoocraft.core.perf.PerfSlot;
+import com.zoocraft.perf.SimulationTimers;
 import com.zoocraft.zoo.Zoo;
 import com.zoocraft.zoo.ZooManager;
 import net.minecraft.core.BlockPos;
@@ -40,6 +43,9 @@ public final class VisitorController {
     static final long LEAVE_SAFETY_TICKS = 60 * 20;
     /** How long a just-admitted visitor has to get from the queue into the zoo before counting as pushed out. */
     static final long WALK_IN_TICKS = 30 * 20;
+    /** An exploring visitor stalled this close to its target for {@link #NEAR_STALL_TICKS} has arrived. */
+    static final double NEAR_ENOUGH = 3.0;
+    static final long NEAR_STALL_TICKS = 5 * 20;
     static final long QUEUE_WAIT_TICKS = 20 * 20;
     static final long EXIT_WALK_TICKS = 20 * 20;
     static final double LOW_SATISFACTION = 15;
@@ -58,6 +64,10 @@ public final class VisitorController {
     private static final int[] WAYPOINT_OFFSETS = {0, 4, -4, 8, -8, 12, -12, 16, -16};
     /** Within this of the waypoint, the next one is chosen. */
     static final double WAYPOINT_REACHED = 4.0;
+    /** Most cells one route search may visit (spec 8.4, refined after the terraced park play-test). */
+    static final int ROUTE_BUDGET = 2048;
+    /** After a routed waypoint is missed, waypoints follow the straight line for this long. */
+    static final long STRAIGHT_AFTER_MISS_TICKS = 10 * 20;
 
     private final Visitor visitor;
     private boolean checkedLoad;
@@ -73,6 +83,8 @@ public final class VisitorController {
     // Long walks go via waypoints (Phase 3 spec section 8.4).
     private @Nullable BlockPos waypoint;
     private int waypointTries;
+    private boolean routedWaypoint;
+    private long straightUntil;
     private int failedRoutes;
     private long lingerUntil;
 
@@ -320,7 +332,12 @@ public final class VisitorController {
         }
         // Shops, toilets and bins must be reached properly; from 2 blocks away a visitor could use one through a wall.
         double arrival = errands.active() ? ERRAND_ARRIVAL : EXHIBIT_ARRIVAL;
-        if (target != null && !closeTo(target, arrival)) {
+        // Stalled just short of a spot to look or wander (one inside a pen not yet known as a pen, a block taken by
+        // others): near enough, as viewing works by proximity. A nearby path that ends within 2 blocks of a target never
+        // counts as a miss, so without this the visitor would retry until the no-progress timeout.
+        boolean nearEnough = !errands.active() && target != null && closeTo(target, NEAR_ENOUGH)
+                && progress.ticksWithoutProgress(now) > NEAR_STALL_TICKS;
+        if (target != null && !closeTo(target, arrival) && !nearEnough) {
             if (walkTowards(target, now)) {
                 BlockPos unreachable = target;
                 failedRoutes = 0;
@@ -551,13 +568,40 @@ public final class VisitorController {
             if (missed) {
                 nav.forgetMisses(waypoint);
                 waypointTries++; // start the sideways search further along next time
+                if (routedWaypoint) {
+                    straightUntil = level.getGameTime() + STRAIGHT_AFTER_MISS_TICKS;
+                }
             }
             waypoint = pickWaypoint(level, pos);
         }
         return waypoint != null ? waypoint : pos;
     }
 
+    /**
+     * The next waypoint: along the paths when they lead nearer the target (so ramps, bridges and the way round a cliff
+     * are followed), otherwise along the straight line.
+     */
     private @Nullable BlockPos pickWaypoint(ServerLevel level, BlockPos pos) {
+        routedWaypoint = false;
+        if (level.getGameTime() >= straightUntil) {
+            BlockPos feet = visitor.blockPosition();
+            long timer = SimulationTimers.start();
+            Optional<PathRoute.Cell> routed;
+            try {
+                routed = PathRoute.waypoint(new VisitorRouteGrid(level, visitor.pathRules()),
+                        new PathRoute.Cell(feet.getX(), feet.getY(), feet.getZ()), pos.getX(), pos.getZ(), WAYPOINT_AHEAD, ROUTE_BUDGET);
+            } finally {
+                SimulationTimers.stop(PerfSlot.VISITOR_ROUTE, visitor.zoo().map(Zoo::id).orElse(null), timer);
+            }
+            if (routed.isPresent()) {
+                routedWaypoint = true;
+                return new BlockPos(routed.get().x(), routed.get().y(), routed.get().z());
+            }
+        }
+        return straightWaypoint(level, pos);
+    }
+
+    private @Nullable BlockPos straightWaypoint(ServerLevel level, BlockPos pos) {
         double dx = pos.getX() + 0.5 - visitor.getX(), dz = pos.getZ() + 0.5 - visitor.getZ();
         double length = Math.sqrt(dx * dx + dz * dz);
         if (length < 1) {

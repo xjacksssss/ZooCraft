@@ -382,52 +382,54 @@ The MVP is the first version that proves the core zoo experience works. It does 
 
 A feature is complete when its expected behaviour has been demonstrated in a test world and, where relevant, in multiplayer.
 
+All criteria were met by 2026-10-16 (end of Phase 3): the evidence is the GameTest suite, the play-test checklists in `docs/playtests/`, the results table in `docs/compatibility.md` (standalone server, ATM10, two-player checks) and `docs/performance.md`.
+
 ### Zoo creation
 
-- [ ] A player can mark and save a custom-shaped zoo boundary.
-- [ ] The zoo can have multiple designated entrances and exits.
-- [ ] Invalid or overlapping boundaries are handled with clear feedback.
-- [ ] Editing a boundary does not delete zoo buildings or financial progress.
+- [x] A player can mark and save a custom-shaped zoo boundary.
+- [x] The zoo can have multiple designated entrances and exits.
+- [x] Invalid or overlapping boundaries are handled with clear feedback.
+- [x] Editing a boundary does not delete zoo buildings or financial progress.
 
 ### Admission and visitors
 
-- [ ] The player can open and close the zoo.
-- [ ] Visitors arrive individually and in groups.
-- [ ] Visitors can pay admission from their available budget or refuse entry.
-- [ ] Admission revenue is recorded exactly once.
-- [ ] Visitors can explore, receive feedback and find an exit.
+- [x] The player can open and close the zoo.
+- [x] Visitors arrive individually and in groups.
+- [x] Visitors can pay admission from their available budget or refuse entry.
+- [x] Admission revenue is recorded exactly once.
+- [x] Visitors can explore, receive feedback and find an exit.
 
 ### Animals and exhibits
 
-- [ ] Eligible vanilla animals are recognised.
-- [ ] Eligible animals from a tested modded-animal setup can be recognised without manual registration.
-- [ ] Different species contribute to collection variety.
-- [ ] Nearby eligible animals can count as viewed.
-- [ ] Poor exhibit conditions generate understandable warnings without automatically killing animals.
+- [x] Eligible vanilla animals are recognised.
+- [x] Eligible animals from a tested modded-animal setup can be recognised without manual registration.
+- [x] Different species contribute to collection variety.
+- [x] Nearby eligible animals can count as viewed.
+- [x] Poor exhibit conditions generate understandable warnings without automatically killing animals.
 
 ### Business and facilities
 
-- [ ] A player can designate a shop and stock it with ordinary Minecraft items.
-- [ ] A successful purchase removes the correct stock and transfers payment once.
-- [ ] An unaffordable or unavailable purchase fails without changing stock or finances.
-- [ ] A player can designate a toilet and a dedicated rubbish bin.
-- [ ] Physical litter can appear and be manually collected.
+- [x] A player can designate a shop and stock it with ordinary Minecraft items.
+- [x] A successful purchase removes the correct stock and transfers payment once.
+- [x] An unaffordable or unavailable purchase fails without changing stock or finances.
+- [x] A player can designate a toilet and a dedicated rubbish bin.
+- [x] Physical litter can appear and be manually collected.
 
 ### Management and multiplayer
 
-- [ ] The dashboard shows attendance, treasury, admission revenue and visitor satisfaction.
-- [ ] The zoo creator can invite and remove managers.
-- [ ] Owner and manager clients see consistent zoo state.
-- [ ] Zoo data persists after the world is saved and reopened.
-- [ ] Visitor limits can be configured and the simulation remains stable under the agreed test load.
+- [x] The dashboard shows attendance, treasury, admission revenue and visitor satisfaction.
+- [x] The zoo creator can invite and remove managers.
+- [x] Owner and manager clients see consistent zoo state.
+- [x] Zoo data persists after the world is saved and reopened.
+- [x] Visitor limits can be configured and the simulation remains stable under the agreed test load.
 
 ### Compatibility and reliability
 
-- [ ] The mod starts in a supported standalone NeoForge 1.21.1 instance.
-- [ ] The mod loads in the selected test version of All the Mods 10 (ATM10).
-- [ ] Unrecognised entities do not automatically count as valid zoo animals.
-- [ ] Closing a zoo or blocking a route does not leave visitors permanently trapped.
-- [ ] The test suite finds no duplicated payments, duplicated stock removal or lost zoo data.
+- [x] The mod starts in a supported standalone NeoForge 1.21.1 instance.
+- [x] The mod loads in the selected test version of All the Mods 10 (ATM10).
+- [x] Unrecognised entities do not automatically count as valid zoo animals.
+- [x] Closing a zoo or blocking a route does not leave visitors permanently trapped.
+- [x] The test suite finds no duplicated payments, duplicated stock removal or lost zoo data.
 
 ### What does not block the MVP?
 

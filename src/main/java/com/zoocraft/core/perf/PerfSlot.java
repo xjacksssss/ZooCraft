@@ -16,7 +16,8 @@ public enum PerfSlot {
     SPAWNER("visitor spawner"),
     DASHBOARD("dashboard"),
     LITTER("litter"),
-    CHUNK_LOADER("chunk loading");
+    CHUNK_LOADER("chunk loading"),
+    VISITOR_ROUTE("visitor route searches");
 
     private final String label;
 
