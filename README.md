@@ -7,6 +7,9 @@ to see the animals, buy food from your shops and tell you what they think.
 ZooCraft works on its own and in the All the Mods 10 (ATM10) modpack, in single player and on servers, where a zoo's
 owner can share the running of it with other players.
 
+**Full documentation is in the [ZooCraft wiki](https://github.com/xjacksssss/ZooCraft/wiki)**: a getting-started guide,
+how visitors, animals, shops and litter work, every command and setting, and modpack customisation.
+
 ## Features
 
 - **Zoos of any shape.** Place boundary corners with the Zoo Boundary Tool. A zoo can have several gates, and its
